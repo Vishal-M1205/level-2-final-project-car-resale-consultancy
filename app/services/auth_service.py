@@ -10,13 +10,20 @@ from app.core.security import (
 from app.models.user import User
 from app.repositories.interfaces.user_interface import UserInterface
 from app.schemas.auth import Login, RegisterUser
+from app.services.email_service import EmailService
 
 
 class AuthService:
 
-    def __init__(self, session: AsyncSession, user_repository: UserInterface):
+    def __init__(
+        self,
+        session: AsyncSession,
+        user_repository: UserInterface,
+        email_service: EmailService,
+    ):
         self.session = session
         self.user_repository = user_repository
+        self.email_service = email_service
 
     async def _register(self, user_data: RegisterUser, role: str) -> User:
         async with self.session.begin():
@@ -44,7 +51,9 @@ class AuthService:
                 hashed_password=hashed_password,
                 role=role,
             )
-            return await self.user_repository.register_user(user)
+            registered_user = await self.user_repository.register_user(user)
+        await self.email_service.send_signup_mail(user.email)
+        return registered_user
 
     async def register_user(self, user_data: RegisterUser) -> User:
         return await self._register(user_data, role="CUSTOMER")

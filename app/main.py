@@ -3,8 +3,10 @@ import logging
 
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
+import httpx
 from app.core.config import config
 from app.api.routes.auth import router as auth_router
+from app.exceptions.email_exception import EmailException
 from app.scripts.create_admin import create_admin
 from app.utilities.log import setup_logging
 
@@ -16,7 +18,22 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await create_admin()
-    yield
+    timeout = httpx.Timeout(connect=5, pool=5, read=10, write=10)
+    limits = httpx.Limits(
+        max_connections=10, max_keepalive_connections=5, keepalive_expiry=30
+    )
+    headers = {
+        "Content-type": "application/json",
+        "Accept": "application/json",
+    }
+    async with httpx.AsyncClient(
+        timeout=timeout,
+        limits=limits,
+        headers=headers,
+        auth=(config.mailjet_api_key, config.mailjet_secret_key),
+    ) as client:
+        app.state.client = client
+        yield
 
 
 app = FastAPI(title="Car Resale Consultancy API", summary="", lifespan=lifespan)
@@ -44,4 +61,15 @@ async def global_exception_handler(request: Request, exc: Exception):
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={"detail": "Internal Server Error"},
+    )
+
+
+@app.exception_handler(EmailException)
+async def email_exception_handler(request: Request, exc: EmailException):
+    logger.exception(
+        "Email Service Error %s %s: %s", request.method, request.url.path, exc
+    )
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={"detail": "Email Service Error"},
     )

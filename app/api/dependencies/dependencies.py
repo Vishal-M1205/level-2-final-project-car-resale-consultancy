@@ -1,5 +1,5 @@
 from typing import Annotated
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer, SecurityScopes
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.security import decode_token
@@ -10,10 +10,16 @@ from app.schemas.auth import TokenData
 from app.services.auth_service import AuthService
 import jwt
 
+from app.services.email_service import EmailService
+
 DB_Session = Annotated[AsyncSession, Depends(get_db_connection)]
 
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+
+
+def get_email_service(request: Request):
+    return EmailService(request.app.state.client)
 
 
 def get_user_repository(session: DB_Session) -> UserInterface:
@@ -22,9 +28,10 @@ def get_user_repository(session: DB_Session) -> UserInterface:
 
 def get_auth_service(
     session: DB_Session,
-    repository: Annotated[UserInterface, Depends(get_user_repository)],
+    user_repository: Annotated[UserInterface, Depends(get_user_repository)],
+    email_service: Annotated[EmailService, Depends(get_email_service)],
 ) -> AuthService:
-    return AuthService(session, repository)
+    return AuthService(session, user_repository, email_service)
 
 
 async def get_current_user(
