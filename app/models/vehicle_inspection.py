@@ -14,14 +14,12 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.constants import CONDITIONS, INSPECTION_STATUSES
 from app.models.base import Base
 
 if TYPE_CHECKING:
     from app.models.user import User
     from app.models.vehicle import Vehicle
-
-CONDITIONS = ("excellent", "good", "average", "bad")
-INSPECTION_STATUSES = ("PENDING", "COMPLETED")
 
 
 class VehicleInspection(Base):

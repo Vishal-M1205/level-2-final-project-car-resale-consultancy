@@ -11,29 +11,7 @@ class EmailService:
     def __init__(self, client: httpx.AsyncClient):
         self.client = client
 
-    async def send_signup_mail(self, recipient: str):
-        payload = {
-            "Messages": [
-                {
-                    "From": {
-                        "Email": "visowmani.123@gmail.com",
-                        "Name": "Car Resale Consultancy API",
-                    },
-                    "To": [
-                        {
-                            "Email": recipient,
-                        }
-                    ],
-                    "Subject": "Welcome to Car Resale Consultancy!",
-                    "HTMLPart": """
-                        <h1>Welcome Aboard!</h1>
-                        <p>Your account has been successfully created.</p>
-                        <p>Thank you for registering with Car Resale Consultancy.</p>
-                        <p>We look forward to serving you!</p>
-                    """,
-                }
-            ]
-        }
+    async def send_mail(self, payload: dict):
         for attempt in range(config.max_retries):
             try:
                 response = await self.client.post(

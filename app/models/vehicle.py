@@ -13,14 +13,14 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.constants import VEHICLE_STATUSES
 from app.models.base import Base
 
 if TYPE_CHECKING:
     from app.models.user import User
+    from app.models.vehicle_document import VehicleDocument
     from app.models.vehicle_inspection import VehicleInspection
     from app.models.vehicle_listing import VehicleListing
-
-VEHICLE_STATUSES = ("submitted", "approved", "rejected", "sold")
 
 
 class Vehicle(Base):
@@ -86,4 +86,7 @@ class Vehicle(Base):
     )
     listing: Mapped["VehicleListing | None"] = relationship(
         "VehicleListing", back_populates="vehicle", uselist=False
+    )
+    documents: Mapped[list["VehicleDocument"]] = relationship(
+        "VehicleDocument", back_populates="vehicle", cascade="all, delete-orphan"
     )

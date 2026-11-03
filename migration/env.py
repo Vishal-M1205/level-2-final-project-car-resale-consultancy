@@ -9,6 +9,7 @@ from app.models.base import Base
 from app.models.resale_transaction import ResaleTransaction
 from app.models.user import User
 from app.models.vehicle import Vehicle
+from app.models.vehicle_document import VehicleDocument
 from app.models.vehicle_inspection import VehicleInspection
 from app.models.vehicle_listing import VehicleListing
 

@@ -13,13 +13,12 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.constants import VEHICLE_LISTING_STATUSES
 from app.models.base import Base
 
 if TYPE_CHECKING:
     from app.models.resale_transaction import ResaleTransaction
     from app.models.vehicle import Vehicle
-
-VEHICLE_LISTING_STATUSES = ("ACTIVE", "INACTIVE", "SOLD")
 
 
 class VehicleListing(Base):

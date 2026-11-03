@@ -138,3 +138,13 @@ updated_at
   "state": "Tamilnadu",
   "pincode": "641010"
 }   
+
+
+admin@example.com
+AdminPassword@123
+
+visowmani.123@gmail.com
+Vishal@1205
+
+sanjaysammathew05@gmail.com
+Sanjay@1205

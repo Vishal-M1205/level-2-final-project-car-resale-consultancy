@@ -6,11 +6,20 @@ from app.core.security import decode_token
 from app.database.database import get_db_connection
 from app.repositories.implementations.user_repository import UserRepository
 from app.repositories.interfaces.user_interface import UserInterface
+from app.repositories.implementations.vehicle_repository import VehicleRepository
+from app.repositories.interfaces.vehicle_interface import VehicleInterface
+from app.repositories.implementations.vehicle_inspection_repository import (
+    VehicleInspectionRepository,
+)
+from app.repositories.interfaces.vehicle_inspection_interface import (
+    VehicleInspectionInterface,
+)
 from app.schemas.auth import TokenData
 from app.services.auth_service import AuthService
-import jwt
-
 from app.services.email_service import EmailService
+from app.services.vehicle_inspection_service import VehicleInspectionService
+from app.services.vehicle_service import VehicleService
+import jwt
 
 DB_Session = Annotated[AsyncSession, Depends(get_db_connection)]
 
@@ -34,10 +43,45 @@ def get_auth_service(
     return AuthService(session, user_repository, email_service)
 
 
+def get_vehicle_repository(session: DB_Session) -> VehicleInterface:
+    return VehicleRepository(session)
+
+
+def get_vehicle_inspection_repository(
+    session: DB_Session,
+) -> VehicleInspectionInterface:
+    return VehicleInspectionRepository(session)
+
+
+def get_vehicle_service(
+    session: DB_Session,
+    vehicle_repository: Annotated[VehicleInterface, Depends(get_vehicle_repository)],
+    vehicle_inspection_repository: Annotated[
+        VehicleInspectionInterface, Depends(get_vehicle_inspection_repository)
+    ],
+) -> VehicleService:
+    return VehicleService(
+        session, vehicle_repository, vehicle_inspection_repository
+    )
+
+
+def get_vehicle_inspection_service(
+    session: DB_Session,
+    vehicle_inspection_repository: Annotated[
+        VehicleInspectionInterface, Depends(get_vehicle_inspection_repository)
+    ],
+    user_repository: Annotated[UserInterface, Depends(get_user_repository)],
+    email_service: Annotated[EmailService, Depends(get_email_service)],
+) -> VehicleInspectionService:
+    return VehicleInspectionService(
+        session, vehicle_inspection_repository, user_repository, email_service
+    )
+
+
 async def get_current_user(
     token: Annotated[str, Depends(oauth2_scheme)],
     security_scopes: SecurityScopes,
-    user_repository: Annotated[UserRepository, Depends(get_user_repository)],
+    user_repository: Annotated[UserInterface, Depends(get_user_repository)],
     session: DB_Session,
 ):
     credentials_exception = HTTPException(

@@ -25,6 +25,30 @@ class AuthService:
         self.user_repository = user_repository
         self.email_service = email_service
 
+    def _signup_mail_payload(recipient: str) -> dict:
+        return {
+            "Messages": [
+                {
+                    "From": {
+                        "Email": "visowmani.123@gmail.com",
+                        "Name": "Car Resale Consultancy API",
+                    },
+                    "To": [
+                        {
+                            "Email": recipient,
+                        }
+                    ],
+                    "Subject": "Welcome to Car Resale Consultancy!",
+                    "HTMLPart": """
+                                <h1>Welcome Aboard!</h1>
+                                <p>Your account has been successfully created.</p>
+                                <p>Thank you for registering with Car Resale Consultancy.</p>
+                                <p>We look forward to serving you!</p>
+                            """,
+                }
+            ]
+        }
+
     async def _register(self, user_data: RegisterUser, role: str) -> User:
         async with self.session.begin():
             existing_user = await self.user_repository.get_user_by_email(
@@ -52,7 +76,8 @@ class AuthService:
                 role=role,
             )
             registered_user = await self.user_repository.register_user(user)
-        await self.email_service.send_signup_mail(user.email)
+        payload = self._signup_mail_payload(user.email)
+        await self.email_service.send_mail(payload)
         return registered_user
 
     async def register_user(self, user_data: RegisterUser) -> User:

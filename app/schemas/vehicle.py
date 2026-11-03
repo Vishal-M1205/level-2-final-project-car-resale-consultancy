@@ -61,8 +61,44 @@ class VehicleResponse(BaseModel):
     expected_price: Decimal
     description: str | None
     seating_capacity: int
+
     status: str
     created_at: datetime
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class VehicleFilterParams(BaseModel):
+    brand: str | None = None
+    model: str | None = None
+    fuel_type: str | None = None
+    transmission: str | None = None
+    min_price: Decimal | None = Field(default=None, ge=0)
+    max_price: Decimal | None = Field(default=None, ge=0)
+    min_year: int | None = Field(default=None, ge=1900)
+    max_year: int | None = None
+    status: str | None = None
+
+    page: int = Field(default=1, ge=1)
+    limit: int = Field(default=5, ge=1, le=50)
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+
+class VehicleListResponse(BaseModel):
+    vehicles: list[VehicleResponse]
+    page: int
+    limit: int
+    total_pages: int
+    total_vehicles: int
+
+
+class MyVehicleListResponse(BaseModel):
+    id: int
+    name: str
+    vehicles: list[VehicleResponse]
+    page: int
+    limit: int
+    total_pages: int
+    total_vehicles: int
