@@ -27,3 +27,20 @@ class VehicleInterface(ABC):
         self, filters: VehicleFilterParams, seller_id: int | None = None
     ) -> dict:
         pass
+
+    @abstractmethod
+    async def update_vehicle_status(
+        self, vehicle_id: int, status: str
+    ) -> Vehicle | None:
+
+        pass
+
+    @abstractmethod
+    async def update_vehicle_details(
+        self, vehicle_id: int, update_data: dict
+    ) -> Vehicle | None:
+        pass
+
+    @abstractmethod
+    async def deactivate_vehicle(self, vehicle_id: int) -> Vehicle | None:
+        pass

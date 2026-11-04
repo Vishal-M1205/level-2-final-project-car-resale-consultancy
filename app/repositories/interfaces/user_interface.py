@@ -15,3 +15,21 @@ class UserInterface(ABC):
     @abstractmethod
     async def get_user_by_phone(self, phone: str) -> User | None:
         pass
+
+    @abstractmethod
+    async def get_user_by_id(self, user_id: int) -> User | None:
+        pass
+
+    @abstractmethod
+    async def get_users(
+        self,
+        page: int,
+        limit: int,
+        role: str | None = None,
+        is_active: bool | None = None,
+    ) -> dict:
+        pass
+
+    @abstractmethod
+    async def soft_delete_user(self, user_id: int) -> User | None:
+        pass

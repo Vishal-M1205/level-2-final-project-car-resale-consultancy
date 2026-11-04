@@ -6,10 +6,10 @@ TRANSMISSIONS = ("MANUAL", "AUTOMATIC")
 RESALE_TRANSACTION_STATUSES = ("CONFIRMED", "DELIVERED", "CANCELLED")
 
 CONDITIONS = ("excellent", "good", "average", "bad")
-INSPECTION_STATUSES = ("PENDING", "COMPLETED")
+INSPECTION_STATUSES = ("PENDING", "COMPLETED", "CANCELLED")
 
 VEHICLE_LISTING_STATUSES = ("ACTIVE", "INACTIVE", "SOLD")
 
-VEHICLE_STATUSES = ("submitted", "approved", "rejected", "sold")
+VEHICLE_STATUSES = ("submitted", "approved", "rejected", "sold", "deactivated")
 
 DOCUMENT_TYPES = ("RC", "INSURANCE", "PUC")

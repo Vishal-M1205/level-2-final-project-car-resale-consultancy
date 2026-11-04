@@ -3,12 +3,13 @@ from sqlalchemy import and_, func, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.models.vehicle import Vehicle
 from app.models.vehicle_inspection import VehicleInspection
 from app.repositories.interfaces.vehicle_inspection_interface import (
     VehicleInspectionInterface,
 )
 from app.schemas.vehicle_inspection import (
-    ConsultantInspectionFilterParams,
+    InspectionFilterParams,
     VehicleInspectionDetailSubmission,
 )
 
@@ -16,6 +17,67 @@ from app.schemas.vehicle_inspection import (
 class VehicleInspectionRepository(VehicleInspectionInterface):
     def __init__(self, session: AsyncSession):
         self.session = session
+
+    async def get_inspections(
+        self, filters: InspectionFilterParams, consultant_id: int | None = None
+    ) -> dict:
+        offset = (filters.page - 1) * filters.limit
+        conditions = [Vehicle.status != "deactivated"]
+
+        if filters.status:
+            conditions.append(VehicleInspection.status == filters.status.upper())
+
+        if filters.is_claimed is True:
+            conditions.append(VehicleInspection.consultant_id.is_not(None))
+        elif filters.is_claimed is False:
+            conditions.append(VehicleInspection.consultant_id.is_(None))
+
+        if consultant_id is not None:
+            conditions.append(VehicleInspection.consultant_id == consultant_id)
+
+        if filters.inspection_date:
+            conditions.append(
+                func.date(VehicleInspection.inspection_date) == filters.inspection_date
+            )
+
+        if filters.vehicle_status:
+            conditions.append(Vehicle.status == filters.vehicle_status)
+
+        stmnt = (
+            select(VehicleInspection)
+            .join(Vehicle, VehicleInspection.vehicle_id == Vehicle.id)
+            .options(
+                selectinload(VehicleInspection.vehicle),
+                selectinload(VehicleInspection.consultant),
+            )
+            .where(and_(*conditions))
+            .order_by(VehicleInspection.created_at.desc())
+            .limit(filters.limit)
+            .offset(offset)
+        )
+        rows = await self.session.execute(stmnt)
+        inspections = list(rows.scalars().all())
+
+        count_stmnt = (
+            select(func.count())
+            .select_from(VehicleInspection)
+            .join(Vehicle, VehicleInspection.vehicle_id == Vehicle.id)
+            .where(and_(*conditions))
+        )
+        row = await self.session.execute(count_stmnt)
+        total_inspections = row.scalar_one() or 0
+
+        total_pages = (
+            math.ceil(total_inspections / filters.limit) if total_inspections > 0 else 0
+        )
+
+        return {
+            "inspections": inspections,
+            "page": filters.page,
+            "limit": filters.limit,
+            "total_pages": total_pages,
+            "total_inspections": total_inspections,
+        }
 
     async def create_pending_inspection(self, vehicle_id: int) -> VehicleInspection:
         stmnt = (
@@ -48,88 +110,53 @@ class VehicleInspectionRepository(VehicleInspectionInterface):
         result = await self.session.execute(stmnt)
         return result.scalar_one_or_none()
 
-    async def get_pending_unassigned_inspections(self, page: int, limit: int) -> dict:
-        offset = (page - 1) * limit
-
-        # Vehicle is associated with VehicleInspection through a one to one relationship
+    async def unclaim_inspection(self, inspection_id: int) -> VehicleInspection | None:
         stmnt = (
-            select(VehicleInspection)
-            .options(selectinload(VehicleInspection.vehicle))
+            update(VehicleInspection)
             .where(
+                VehicleInspection.id == inspection_id,
+                VehicleInspection.consultant_id.is_not(None),
                 VehicleInspection.status == "PENDING",
-                VehicleInspection.consultant_id.is_(None),
             )
-            .order_by(VehicleInspection.created_at.desc())
-            .limit(limit)
-            .offset(offset)
+            .values(consultant_id=None, updated_at=func.now())
+            .returning(VehicleInspection)
         )
-        rows = await self.session.execute(stmnt)
-        inspections = rows.scalars().all()
+        result = await self.session.execute(stmnt)
+        return result.scalar_one_or_none()
 
-        count_stmnt = (
-            select(func.count())
-            .select_from(VehicleInspection)
-            .where(
-                VehicleInspection.status == "PENDING",
-                VehicleInspection.consultant_id.is_(None),
-            )
-        )
-        row = await self.session.execute(count_stmnt)
-        total_inspections = row.scalar_one() or 0
-
-        total_pages = (
-            math.ceil(total_inspections / limit) if total_inspections > 0 else 0
-        )
-
-        return {
-            "inspections": inspections,
-            "page": page,
-            "limit": limit,
-            "total_pages": total_pages,
-            "total_inspections": total_inspections,
-        }
-
-    async def get_consultant_inspections(
-        self, consultant_id: int, filters: ConsultantInspectionFilterParams
-    ) -> dict:
-        offset = (filters.page - 1) * filters.limit
-        conditions = [VehicleInspection.consultant_id == consultant_id]
-
-        if filters.status:
-            conditions.append(VehicleInspection.status == filters.status.upper())
-        if filters.inspection_date:
-            conditions.append(
-                func.date(VehicleInspection.inspection_date) == filters.inspection_date
-            )
-
+    async def cancel_inspection(self, inspection_id: int) -> VehicleInspection | None:
         stmnt = (
-            select(VehicleInspection)
-            .options(selectinload(VehicleInspection.vehicle))
-            .where(and_(*conditions))
-            .order_by(VehicleInspection.created_at.desc())
-            .limit(filters.limit)
-            .offset(offset)
+            update(VehicleInspection)
+            .where(VehicleInspection.id == inspection_id)
+            .values(status="CANCELLED", updated_at=func.now())
+            .returning(VehicleInspection)
         )
-        rows = await self.session.execute(stmnt)
-        inspections = rows.scalars().all()
+        result = await self.session.execute(stmnt)
+        return result.scalar_one_or_none()
 
-        count_stmnt = (
-            select(func.count()).select_from(VehicleInspection).where(and_(*conditions))
+    async def reset_inspection_for_resubmission(
+        self, vehicle_id: int
+    ) -> VehicleInspection | None:
+        stmnt = (
+            update(VehicleInspection)
+            .where(VehicleInspection.vehicle_id == vehicle_id)
+            .values(
+                status="PENDING",
+                consultant_id=None,
+                condition=None,
+                engine_condition=None,
+                exterior_condition=None,
+                interior_condition=None,
+                accident_history=None,
+                estimated_market_value=None,
+                inspection_notes=None,
+                inspection_date=None,
+                updated_at=func.now(),
+            )
+            .returning(VehicleInspection)
         )
-        row = await self.session.execute(count_stmnt)
-        total_inspections = row.scalar_one() or 0
-
-        total_pages = (
-            math.ceil(total_inspections / filters.limit) if total_inspections > 0 else 0
-        )
-
-        return {
-            "inspections": inspections,
-            "page": filters.page,
-            "limit": filters.limit,
-            "total_pages": total_pages,
-            "total_inspections": total_inspections,
-        }
+        result = await self.session.execute(stmnt)
+        return result.scalar_one_or_none()
 
     async def submit_inspection_report(
         self,
@@ -152,5 +179,51 @@ class VehicleInspectionRepository(VehicleInspectionInterface):
 
         # refresh vehicle relationship because VehicleInspectionDetailResponse has "vehicle" , where the
         # VehicleInspection has vehicle relationship
+        await self.session.refresh(updated_inspection, ["vehicle"])
+        return updated_inspection
+
+    async def get_inspection_by_vehicle_id(
+        self, vehicle_id: int
+    ) -> VehicleInspection | None:
+        stmnt = (
+            select(VehicleInspection)
+            .where(VehicleInspection.vehicle_id == vehicle_id)
+            .options(selectinload(VehicleInspection.vehicle))
+        )
+        result = await self.session.execute(stmnt)
+        return result.scalar_one_or_none()
+
+    async def get_inspection_with_details(
+        self, inspection_id: int
+    ) -> VehicleInspection | None:
+        stmnt = (
+            select(VehicleInspection)
+            .where(VehicleInspection.id == inspection_id)
+            .options(
+                selectinload(VehicleInspection.vehicle).selectinload(Vehicle.seller),
+                selectinload(VehicleInspection.vehicle).selectinload(Vehicle.documents),
+                selectinload(VehicleInspection.consultant),
+            )
+        )
+        result = await self.session.execute(stmnt)
+        return result.scalar_one_or_none()
+
+    async def update_inspection_details(
+        self,
+        inspection_id: int,
+        report_data: VehicleInspectionDetailSubmission,
+    ) -> VehicleInspection:
+        stmnt = (
+            update(VehicleInspection)
+            .where(VehicleInspection.id == inspection_id)
+            .values(
+                **report_data.model_dump(),
+                updated_at=func.now(),
+            )
+            .returning(VehicleInspection)
+        )
+        result = await self.session.execute(stmnt)
+        updated_inspection = result.scalar_one()
+
         await self.session.refresh(updated_inspection, ["vehicle"])
         return updated_inspection

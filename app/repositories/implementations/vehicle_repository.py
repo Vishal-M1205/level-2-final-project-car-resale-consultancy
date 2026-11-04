@@ -1,6 +1,6 @@
 import math
 
-from sqlalchemy import and_, func, insert, select
+from sqlalchemy import and_, func, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.vehicle import Vehicle
@@ -48,6 +48,8 @@ class VehicleRepository(VehicleInterface):
 
         if filters.status:
             conditions.append(Vehicle.status == filters.status)
+        else:
+            conditions.append(Vehicle.status != "deactivated")
         if filters.fuel_type:
             conditions.append(Vehicle.fuel_type == filters.fuel_type)
         if filters.transmission:
@@ -96,3 +98,37 @@ class VehicleRepository(VehicleInterface):
             "total_pages": total_pages,
             "total_vehicles": total_vehicles,
         }
+
+    async def update_vehicle_status(
+        self, vehicle_id: int, status: str
+    ) -> Vehicle | None:
+        stmnt = (
+            update(Vehicle)
+            .where(Vehicle.id == vehicle_id)
+            .values(status=status, updated_at=func.now())
+            .returning(Vehicle)
+        )
+        result = await self.session.execute(stmnt)
+        return result.scalar_one_or_none()
+
+    async def update_vehicle_details(
+        self, vehicle_id: int, update_data: dict
+    ) -> Vehicle | None:
+        stmnt = (
+            update(Vehicle)
+            .where(Vehicle.id == vehicle_id)
+            .values(**update_data, updated_at=func.now())
+            .returning(Vehicle)
+        )
+        result = await self.session.execute(stmnt)
+        return result.scalar_one_or_none()
+
+    async def deactivate_vehicle(self, vehicle_id: int) -> Vehicle | None:
+        stmnt = (
+            update(Vehicle)
+            .where(Vehicle.id == vehicle_id)
+            .values(status="deactivated", updated_at=func.now())
+            .returning(Vehicle)
+        )
+        result = await self.session.execute(stmnt)
+        return result.scalar_one_or_none()

@@ -6,8 +6,11 @@ from fastapi.responses import JSONResponse
 import httpx
 from app.core.config import config
 from app.api.routes.auth import router as auth_router
+from app.api.routes.user import router as user_router
 from app.api.routes.vehicle import router as vehicle_router
 from app.api.routes.vehicle_inspection import router as vehicle_inspection_router
+from app.api.routes.vehicle_listing import router as vehicle_listing_router
+from app.api.routes.resale_transaction import router as resale_transaction_router
 from app.exceptions.email_exception import EmailException
 from app.scripts.create_admin import create_admin
 from app.utilities.log import setup_logging
@@ -41,8 +44,11 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Car Resale Consultancy API", summary="", lifespan=lifespan)
 
 app.include_router(auth_router)
+app.include_router(user_router)
 app.include_router(vehicle_router)
 app.include_router(vehicle_inspection_router)
+app.include_router(vehicle_listing_router)
+app.include_router(resale_transaction_router)
 
 
 @app.get("/api/health", status_code=status.HTTP_200_OK, tags=["Health Checkup"])
