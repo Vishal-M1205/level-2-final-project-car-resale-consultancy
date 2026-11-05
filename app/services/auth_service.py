@@ -1,20 +1,26 @@
-from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.schemas.auth import Token
+
 from app.core.security import (
-    hash_password,
-    verify_hashed_password,
     create_access_token,
     create_refresh_token,
+    decode_access_token,
+    hash_password,
+    verify_hashed_password,
+)
+from app.exceptions import (
+    ConflictException,
+    ForbiddenException,
+    NotFoundException,
+    SignatureError,
+    UnauthorizedException,
 )
 from app.models.user import User
 from app.repositories.interfaces.user_interface import UserInterface
-from app.schemas.auth import Login, RegisterUser
+from app.schemas.auth import Login, RegisterUser, Token
 from app.services.email_service import EmailService
 
 
 class AuthService:
-
     def __init__(
         self,
         session: AsyncSession,
@@ -25,7 +31,7 @@ class AuthService:
         self.user_repository = user_repository
         self.email_service = email_service
 
-    def _signup_mail_payload(recipient: str) -> dict:
+    def _signup_mail_payload(self, recipient: str) -> dict:
         return {
             "Messages": [
                 {
@@ -55,19 +61,13 @@ class AuthService:
                 user_data.email
             )
             if existing_user:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="User already exists with this email",
-                )
+                raise ConflictException("User already exists with this email")
 
             existing_user = await self.user_repository.get_user_by_phone(
                 user_data.phone
             )
             if existing_user:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="User already exists with this phone number",
-                )
+                raise ConflictException("User already exists with this phone number")
 
             hashed_password = hash_password(user_data.password)
             user = User(
@@ -93,27 +93,43 @@ class AuthService:
             )
 
             if not user:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND, detail="No User found"
-                )
+                raise NotFoundException("No User found")
             if not user.is_active:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Account is deactivated",
-                )
+                raise ForbiddenException("Account is deactivated")
 
             hashed_password = user.hashed_password
 
             if not verify_hashed_password(hashed_password, login_credentials.password):
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Invalid email or password",
-                )
+                raise UnauthorizedException("Invalid email or password")
 
             access_token_payload = {"sub": user.email, "role": user.role}
             refresh_token_payload = {"sub": user.email}
 
             access_token = create_access_token(access_token_payload)
             refresh_token = create_refresh_token(refresh_token_payload)
+
+            return Token(access_token=access_token, refresh_token=refresh_token)
+
+    async def refresh_access_token(self, refresh_token: str) -> Token:
+        credential_error = UnauthorizedException("Invalid Credentials")
+        try:
+            payload = decode_access_token(refresh_token)
+        except SignatureError:
+            raise
+        except Exception:
+            raise credential_error
+
+        if payload.get("type") != "refresh":
+            raise credential_error
+
+        async with self.session.begin():
+            user = await self.user_repository.get_user_by_email(payload.get("sub"))
+
+            if not user or user.is_active is False:
+                raise credential_error
+
+            token_data = {"sub": user.email, "role": user.role}
+
+            access_token = create_access_token(token_data)
 
             return Token(access_token=access_token, refresh_token=refresh_token)

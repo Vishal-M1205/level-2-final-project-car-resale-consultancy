@@ -94,3 +94,7 @@ class Token(BaseModel):
 class Login(BaseModel):
     email: EmailStr
     password: str
+
+
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str

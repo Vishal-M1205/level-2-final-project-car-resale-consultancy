@@ -6,6 +6,7 @@ from app.schemas.user import (
     PaginatedUsersResponse,
     UserDeleteResponse,
     UserFilterParams,
+    UserPatchRequest,
     UserResponse,
 )
 from app.services.user_service import UserService
@@ -67,5 +68,28 @@ async def soft_delete_user(
     """
     return await service.soft_delete_user(
         user_id=user_id, current_user=current_user
+    )
+
+
+@router.patch(
+    "/{user_id}",
+    response_model=UserResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Update user profile (Users can update their own profile)",
+)
+async def patch_user(
+    user_id: int,
+    patch_data: UserPatchRequest,
+    service: Annotated[UserService, Depends(get_user_service)],
+    current_user=Security(get_current_user, scopes=["user:update_own"]),
+):
+    """
+    Update profile details (name, phone, address, age, gender, pincode).
+    Users can update their own profile; Admin can update any user's profile.
+    """
+    return await service.patch_user(
+        user_id=user_id,
+        patch_data=patch_data,
+        current_user=current_user,
     )
 

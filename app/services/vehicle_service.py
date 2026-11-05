@@ -1,8 +1,13 @@
 from decimal import Decimal
-from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.constants import DOCUMENT_TYPES
+from app.exceptions import (
+    BadRequestException,
+    ConflictException,
+    ForbiddenException,
+    NotFoundException,
+)
 from app.models.user import User
 from app.models.vehicle import Vehicle
 from app.repositories.interfaces.user_interface import UserInterface
@@ -56,9 +61,8 @@ class VehicleService:
             )
 
             if existing_vehicle:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="Vehicle with this registration number already found",
+                raise ConflictException(
+                    "Vehicle with this registration number already found"
                 )
 
             submitted_vehicle = await self.vehicle_repository.insert_vehicle_details(
@@ -78,21 +82,16 @@ class VehicleService:
             )
 
             if not vehicle_details:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND, detail="No Vehicle found"
-                )
+                raise NotFoundException("No Vehicle found")
 
             if user.role == "CUSTOMER" and vehicle_details.seller_id != user.id:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="You do not have permission to view this vehicle.",
+                raise ForbiddenException(
+                    "You do not have permission to view this vehicle."
                 )
 
             return vehicle_details
 
-    async def get_all_vehicles(
-        self, filters: VehicleFilterParams, user: User
-    ) -> dict:
+    async def get_all_vehicles(self, filters: VehicleFilterParams, user: User) -> dict:
         async with self.session.begin():
             seller_id = user.id if user.role == "CUSTOMER" else filters.seller_id
             return await self.vehicle_repository.get_vehicles(
@@ -114,57 +113,44 @@ class VehicleService:
         """
         update_fields = update_data.model_dump(exclude_unset=True)
         if not update_fields:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No fields provided to update.",
-            )
+            raise BadRequestException("No fields provided to update.")
 
         async with self.session.begin():
             vehicle = await self.vehicle_repository.get_vehicle_by_id(vehicle_id)
             if not vehicle:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Vehicle not found.",
-                )
+                raise NotFoundException("Vehicle not found.")
 
             if vehicle.status == "sold":
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Cannot edit details for a vehicle that has already been sold.",
+                raise BadRequestException(
+                    "Cannot edit details for a vehicle that has already been sold."
                 )
 
             if vehicle.status == "deactivated":
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Cannot edit details for a deactivated vehicle.",
+                raise BadRequestException(
+                    "Cannot edit details for a deactivated vehicle."
                 )
 
             # sellers can only update their own vehicles
             if user.role != "ADMIN":
                 if vehicle.seller_id != user.id:
-                    raise HTTPException(
-                        status_code=status.HTTP_403_FORBIDDEN,
-                        detail="You do not have permission to update this vehicle.",
+                    raise ForbiddenException(
+                        "You do not have permission to update this vehicle."
                     )
 
                 if vehicle.status != "submitted":
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"Cannot edit vehicle. Details can only be updated while status is 'submitted' (current status: '{vehicle.status}').",
+                    raise BadRequestException(
+                        f"Cannot edit vehicle. Details can only be updated while status is 'submitted' (current status: '{vehicle.status}')."
                     )
 
             if "registration_number" in update_fields:
                 new_reg = update_fields["registration_number"]
                 if new_reg != vehicle.registration_number:
-                    existing = (
-                        await self.vehicle_repository.get_vehicle_by_registration_number(
-                            new_reg
-                        )
+                    existing = await self.vehicle_repository.get_vehicle_by_registration_number(
+                        new_reg
                     )
                     if existing:
-                        raise HTTPException(
-                            status_code=status.HTTP_409_CONFLICT,
-                            detail="A vehicle with this registration number already exists.",
+                        raise ConflictException(
+                            "A vehicle with this registration number already exists."
                         )
 
             updated_vehicle = await self.vehicle_repository.update_vehicle_details(
@@ -252,9 +238,8 @@ class VehicleService:
         Automatically creates a  Resale-Vehicle listing
         """
         if admin_user.role != "ADMIN":
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only Admins are authorized to approve or reject vehicles.",
+            raise ForbiddenException(
+                "Only Admins are authorized to approve or reject vehicles."
             )
 
         email_payload = None
@@ -262,30 +247,26 @@ class VehicleService:
         async with self.session.begin():
             vehicle = await self.vehicle_repository.get_vehicle_by_id(vehicle_id)
             if not vehicle:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Vehicle not found.",
-                )
+                raise NotFoundException("Vehicle not found.")
 
             if vehicle.status == "sold":
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Cannot change decision for a vehicle that has already been sold.",
+                raise BadRequestException(
+                    "Cannot change decision for a vehicle that has already been sold."
                 )
 
             if vehicle.status == "deactivated":
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Cannot change decision for a deactivated vehicle.",
+                raise BadRequestException(
+                    "Cannot change decision for a deactivated vehicle."
                 )
 
             if decision.action == "RESUBMIT":
                 if vehicle.status != "rejected":
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"Cannot resubmit vehicle. Only rejected vehicles can be resubmitted (current status: '{vehicle.status}').",
+                    raise BadRequestException(
+                        f"Cannot resubmit vehicle. Only rejected vehicles can be resubmitted (current status: '{vehicle.status}')."
                     )
-                await self.vehicle_repository.update_vehicle_status(vehicle_id, "submitted")
+                await self.vehicle_repository.update_vehicle_status(
+                    vehicle_id, "submitted"
+                )
                 await self.vehicle_inspection_repository.reset_inspection_for_resubmission(
                     vehicle_id
                 )
@@ -301,9 +282,8 @@ class VehicleService:
                 )
             )
             if not inspection or inspection.status != "COMPLETED":
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Cannot process decision. Vehicle inspection has not been completed.",
+                raise BadRequestException(
+                    "Cannot process decision. Vehicle inspection has not been completed."
                 )
 
             if self.user_repository:
@@ -319,18 +299,16 @@ class VehicleService:
                     required_types = set(DOCUMENT_TYPES)
                     missing_docs = required_types - uploaded_types
                     if missing_docs:
-                        raise HTTPException(
-                            status_code=status.HTTP_400_BAD_REQUEST,
-                            detail=f"Cannot approve vehicle. Missing required documents: {list(missing_docs)}.",
+                        raise BadRequestException(
+                            f"Cannot approve vehicle. Missing required documents: {list(missing_docs)}."
                         )
 
                 if (
                     not inspection.estimated_market_value
                     or inspection.estimated_market_value <= 0
                 ):
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="Inspection report is missing a valid estimated market value.",
+                    raise BadRequestException(
+                        "Inspection report is missing a valid estimated market value."
                     )
 
                 # Update vehicle status to approved
@@ -342,26 +320,32 @@ class VehicleService:
                     vehicle.description or "No description is mentioned"
                 )
 
-                # Atomically create or reactivate active vehicle listing
-
-                existing_listing = (
-                    await self.vehicle_listing_repository.get_listing_by_vehicle_id(
-                        vehicle.id
-                    )
+                # auto create listing if not exists
+                listing = await self.vehicle_listing_repository.get_listing_by_vehicle_id(
+                    vehicle.id
                 )
-                if existing_listing:
-                    listing = await self.vehicle_listing_repository.reactivate_listing(
-                        vehicle_id=vehicle.id,
-                        listed_price=inspection.estimated_market_value,
-                        listing_description=listing_description,
+
+                if not listing:
+                    new_listing = (
+                        await self.vehicle_listing_repository.create_listing(
+                            vehicle_id=vehicle.id,
+                            listed_price=inspection.estimated_market_value,
+                            listing_description=listing_description,
+                        )
                     )
+                    listing_id = new_listing.id
+                    listed_price = new_listing.listed_price
                 else:
-                    listing = await self.vehicle_listing_repository.create_listing(
-                        vehicle_id=vehicle.id,
-                        listed_price=inspection.estimated_market_value,
-                        listing_description=listing_description,
-                        status="ACTIVE",
+                    updated_listing = (
+                        await self.vehicle_listing_repository.update_listing(
+                            listing_id=listing.id,
+                            status="ACTIVE",
+                            listed_price=inspection.estimated_market_value,
+                            description=listing_description,
+                        )
                     )
+                    listing_id = updated_listing.id
+                    listed_price = updated_listing.listed_price
 
                 if seller:
                     email_payload = self._approval_email_payload(
@@ -373,12 +357,12 @@ class VehicleService:
                 response_data = VehicleDecisionResponse(
                     vehicle_id=vehicle.id,
                     status="approved",
-                    message="Vehicle has been approved and successfully listed for resale.",
-                    listing_id=listing.id if listing else None,
-                    listed_price=inspection.estimated_market_value,
+                    message="Vehicle has been approved and listing created successfully.",
+                    listing_id=listing_id,
+                    listed_price=listed_price,
                 )
 
-            else:  # REJECTED
+            elif decision.action == "REJECTED":
 
                 await self.vehicle_repository.update_vehicle_status(
                     vehicle_id, "rejected"
@@ -409,7 +393,7 @@ class VehicleService:
                     listed_price=None,
                 )
 
-        # Send notification email outside the DB transaction
+        # Sending notification email outside the DB transaction
         if self.email_service and email_payload:
             try:
                 await self.email_service.send_mail(email_payload)
@@ -428,34 +412,25 @@ class VehicleService:
         async with self.session.begin():
             vehicle = await self.vehicle_repository.get_vehicle_by_id(vehicle_id)
             if not vehicle:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Vehicle not found.",
-                )
+                raise NotFoundException("Vehicle not found.")
 
             if vehicle.status == "deactivated":
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Vehicle is already deactivated.",
-                )
+                raise BadRequestException("Vehicle is already deactivated.")
 
             if vehicle.status == "sold":
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Cannot delete a vehicle that has already been sold.",
+                raise BadRequestException(
+                    "Cannot delete a vehicle that has already been sold."
                 )
 
             if user.role != "ADMIN":
                 if vehicle.seller_id != user.id:
-                    raise HTTPException(
-                        status_code=status.HTTP_403_FORBIDDEN,
-                        detail="You do not have permission to delete this vehicle.",
+                    raise ForbiddenException(
+                        "You do not have permission to delete this vehicle."
                     )
 
                 if vehicle.status not in ("submitted", "rejected"):
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"Sellers cannot delete a vehicle in '{vehicle.status}' status. Only submitted or rejected vehicles can be deleted.",
+                    raise BadRequestException(
+                        f"Sellers cannot delete a vehicle in '{vehicle.status}' status. Only submitted or rejected vehicles can be deleted."
                     )
 
             await self.vehicle_repository.deactivate_vehicle(vehicle_id)

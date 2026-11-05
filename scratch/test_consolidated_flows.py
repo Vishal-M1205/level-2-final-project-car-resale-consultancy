@@ -10,6 +10,7 @@ sys.path.append(os.getcwd())
 from app.core.security import create_access_token
 from app.database.database import AsyncSessionMaker
 from app.main import app
+from app.models.resale_transaction import ResaleTransaction
 from app.models.user import User
 from app.models.vehicle import Vehicle
 from app.models.vehicle_document import VehicleDocument
@@ -19,22 +20,38 @@ from sqlalchemy import delete, select
 
 
 async def cleanup(session):
-    await session.execute(
-        delete(VehicleListing).where(VehicleListing.listing_description.like("TESTCON%"))
+    listing_rows = await session.execute(
+        select(VehicleListing.id).where(VehicleListing.listing_description.like("TESTCON%"))
     )
+    listing_ids = list(listing_rows.scalars().all())
+    if listing_ids:
+        await session.execute(
+            delete(ResaleTransaction).where(ResaleTransaction.listing_id.in_(listing_ids))
+        )
+        await session.execute(
+            delete(VehicleListing).where(VehicleListing.id.in_(listing_ids))
+        )
     v_rows = await session.execute(
         select(Vehicle.id).where(Vehicle.registration_number.like("TESTCON%"))
     )
     v_ids = list(v_rows.scalars().all())
     if v_ids:
+        l_rows = await session.execute(
+            select(VehicleListing.id).where(VehicleListing.vehicle_id.in_(v_ids))
+        )
+        l_ids = list(l_rows.scalars().all())
+        if l_ids:
+            await session.execute(
+                delete(ResaleTransaction).where(ResaleTransaction.listing_id.in_(l_ids))
+            )
+            await session.execute(
+                delete(VehicleListing).where(VehicleListing.id.in_(l_ids))
+            )
         await session.execute(
             delete(VehicleDocument).where(VehicleDocument.vehicle_id.in_(v_ids))
         )
         await session.execute(
             delete(VehicleInspection).where(VehicleInspection.vehicle_id.in_(v_ids))
-        )
-        await session.execute(
-            delete(VehicleListing).where(VehicleListing.vehicle_id.in_(v_ids))
         )
         await session.execute(delete(Vehicle).where(Vehicle.id.in_(v_ids)))
     await session.commit()
@@ -86,7 +103,7 @@ async def run_consolidated_tests():
             "brand": "Maruti Suzuki",
             "model": "Swift",
             "variant": "ZXI Plus",
-            "registration_number": "TESTCON01",
+            "registration_number": "TESTCON001",
             "manufacturing_year": 2022,
             "fuel_type": "petrol",
             "transmission": "manual",

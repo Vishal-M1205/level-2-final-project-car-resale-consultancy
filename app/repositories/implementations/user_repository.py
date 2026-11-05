@@ -87,3 +87,14 @@ class UserRepository(UserInterface):
         )
         result = await self.session.execute(stmnt)
         return result.scalar_one_or_none()
+
+    async def update_user(self, user_id: int, update_data: dict) -> User | None:
+        update_data["updated_at"] = func.now()
+        stmnt = (
+            update(User)
+            .where(User.id == user_id)
+            .values(**update_data)
+            .returning(User)
+        )
+        result = await self.session.execute(stmnt)
+        return result.scalar_one_or_none()

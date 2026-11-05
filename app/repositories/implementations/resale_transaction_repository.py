@@ -1,7 +1,7 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 import math
-from sqlalchemy import and_, func, insert, or_, select
+from sqlalchemy import and_, func, insert, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -27,6 +27,9 @@ class ResaleTransactionRepository(ResaleTransactionInterface):
         delivery_date: datetime | None = None,
         delivery_notes: str | None = None,
     ) -> ResaleTransaction:
+        if delivery_date is not None and delivery_date.tzinfo is not None:
+            delivery_date = delivery_date.astimezone(timezone.utc).replace(tzinfo=None)
+
         stmnt = (
             insert(ResaleTransaction)
             .values(
@@ -128,4 +131,31 @@ class ResaleTransactionRepository(ResaleTransactionInterface):
         )
         result = await self.session.execute(stmnt)
         return result.scalar_one_or_none()
+
+    async def update_transaction(
+        self, transaction_id: int, update_data: dict
+    ) -> ResaleTransaction | None:
+        if "delivery_date" in update_data and update_data["delivery_date"] is not None:
+            val = update_data["delivery_date"]
+            if getattr(val, "tzinfo", None) is not None:
+                update_data["delivery_date"] = val.astimezone(timezone.utc).replace(
+                    tzinfo=None
+                )
+
+        update_data["updated_at"] = func.now()
+        stmnt = (
+            update(ResaleTransaction)
+            .where(ResaleTransaction.id == transaction_id)
+            .values(**update_data)
+            .returning(ResaleTransaction)
+        )
+        result = await self.session.execute(stmnt)
+        tx = result.scalar_one_or_none()
+        if tx:
+            await self.session.refresh(
+                tx, ["buyer", "seller", "consultant", "listing"]
+            )
+            if tx.listing:
+                await self.session.refresh(tx.listing, ["vehicle"])
+        return tx
 

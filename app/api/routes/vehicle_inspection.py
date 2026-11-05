@@ -7,6 +7,7 @@ from app.api.dependencies.dependencies import (
 )
 from app.schemas.vehicle_inspection import (
     AdminInspectionDetailResponse,
+    CustomerInspectionFilterParams,
     InspectionCancelResponse,
     InspectionFilterParams,
     InspectionUnclaimResponse,
@@ -35,12 +36,35 @@ async def get_all_inspections(
 ):
     """
     Retrieve a paginated list of vehicle inspections with optional filters:
+    - vehicle_id: filter by vehicle ID
     - status: 'PENDING', 'COMPLETED', 'CANCELLED'
     - is_claimed: false (unassigned pool), true (claimed queue)
+    - consultant_id: filter by assigned consultant ID (Admin only)
     - mine: true (claimed by current consultant)
     - inspection_date, vehicle_status, page, limit
     """
     return await service.get_all_inspections(filters=filters, current_user=current_user)
+
+
+@router.get(
+    "/my-inspections",
+    response_model=PaginatedInspectionsResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get inspections for current customer's vehicles",
+)
+async def get_my_inspections(
+    filters: Annotated[CustomerInspectionFilterParams, Query()],
+    service: Annotated[
+        VehicleInspectionService, Depends(get_vehicle_inspection_service)
+    ],
+    current_user=Security(get_current_user, scopes=["inspection:read_own"]),
+):
+    """
+    Retrieve a paginated list of vehicle inspections for the logged-in customer's vehicles.
+    """
+    return await service.get_customer_inspections(
+        filters=filters, current_user=current_user
+    )
 
 
 @router.get(
@@ -54,7 +78,7 @@ async def get_inspection_by_id(
     service: Annotated[
         VehicleInspectionService, Depends(get_vehicle_inspection_service)
     ],
-    current_user=Security(get_current_user, scopes=["inspection:read"]),
+    current_user=Security(get_current_user, scopes=["inspection:read_own"]),
 ):
     """
     Retrieve complete details of a vehicle inspection including vehicle, consultant, and uploaded documents.

@@ -36,3 +36,9 @@ class ResaleTransactionInterface(ABC):
     ) -> ResaleTransaction | None:
         pass
 
+    @abstractmethod
+    async def update_transaction(
+        self, transaction_id: int, update_data: dict
+    ) -> ResaleTransaction | None:
+        pass
+

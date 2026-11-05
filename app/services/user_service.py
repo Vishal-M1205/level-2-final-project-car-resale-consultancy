@@ -1,12 +1,17 @@
-from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.exceptions import (
+    BadRequestException,
+    ConflictException,
+    ForbiddenException,
+    NotFoundException,
+)
 from app.models.user import User
 from app.repositories.interfaces.user_interface import UserInterface
 from app.repositories.interfaces.vehicle_listing_interface import (
     VehicleListingInterface,
 )
-from app.schemas.user import UserFilterParams
+from app.schemas.user import UserFilterParams, UserPatchRequest
 
 
 class UserService:
@@ -22,10 +27,7 @@ class UserService:
 
     async def get_users(self, filters: UserFilterParams, current_user: User) -> dict:
         if current_user.role != "ADMIN":
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only administrators can list users.",
-            )
+            raise ForbiddenException("Only administrators can list users.")
 
         async with self.session.begin():
             return await self.user_repository.get_users(
@@ -37,46 +39,32 @@ class UserService:
 
     async def get_user_by_id(self, user_id: int, current_user: User) -> User:
         if current_user.role != "ADMIN" and current_user.id != user_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You do not have permission to view other users' profiles.",
+            raise ForbiddenException(
+                "You do not have permission to view other users' profiles."
             )
 
         async with self.session.begin():
             user = await self.user_repository.get_user_by_id(user_id)
             if not user:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="User not found.",
-                )
+                raise NotFoundException("User not found.")
             return user
 
     async def soft_delete_user(self, user_id: int, current_user: User) -> dict:
         if current_user.role != "ADMIN":
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only administrators can deactivate users.",
-            )
+            raise ForbiddenException("Only administrators can deactivate users.")
 
         if current_user.id == user_id:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Administrators cannot deactivate their own account.",
+            raise BadRequestException(
+                "Administrators cannot deactivate their own account."
             )
 
         async with self.session.begin():
             target_user = await self.user_repository.get_user_by_id(user_id)
             if not target_user:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="User not found.",
-                )
+                raise NotFoundException("User not found.")
 
             if not target_user.is_active:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="User is already deactivated.",
-                )
+                raise BadRequestException("User is already deactivated.")
 
             # Soft delete user
             await self.user_repository.soft_delete_user(user_id)
@@ -95,3 +83,31 @@ class UserService:
                 "deactivated_listings_count": len(deactivated_listing_ids),
             }
 
+    async def patch_user(
+        self, user_id: int, patch_data: UserPatchRequest, current_user: User
+    ) -> User:
+        if current_user.role != "ADMIN" and current_user.id != user_id:
+            raise ForbiddenException("You can only update your own profile.")
+
+        update_dict = patch_data.model_dump(exclude_unset=True)
+        if not update_dict:
+            raise BadRequestException("No fields provided for update.")
+
+        async with self.session.begin():
+            existing_user = await self.user_repository.get_user_by_id(user_id)
+            if not existing_user or not existing_user.is_active:
+                raise NotFoundException("User not found or is inactive.")
+
+            if "phone" in update_dict and update_dict["phone"] != existing_user.phone:
+                phone_user = await self.user_repository.get_user_by_phone(
+                    update_dict["phone"]
+                )
+                if phone_user and phone_user.id != user_id:
+                    raise ConflictException(
+                        "Phone number is already registered by another user."
+                    )
+
+            updated_user = await self.user_repository.update_user(
+                user_id=user_id, update_data=update_dict
+            )
+            return updated_user

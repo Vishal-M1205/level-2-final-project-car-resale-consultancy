@@ -1,17 +1,24 @@
 from contextlib import asynccontextmanager
 import logging
-
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 import httpx
-from app.core.config import config
+import jwt
+
 from app.api.routes.auth import router as auth_router
+from app.api.routes.resale_transaction import router as resale_transaction_router
 from app.api.routes.user import router as user_router
 from app.api.routes.vehicle import router as vehicle_router
 from app.api.routes.vehicle_inspection import router as vehicle_inspection_router
 from app.api.routes.vehicle_listing import router as vehicle_listing_router
-from app.api.routes.resale_transaction import router as resale_transaction_router
-from app.exceptions.email_exception import EmailException
+from app.core.config import config
+from app.exceptions import (
+    AppException,
+    EmailException,
+    InvalidSignatureException,
+    SignatureError,
+    TokenExpiredException,
+)
 from app.scripts.create_admin import create_admin
 from app.utilities.log import setup_logging
 
@@ -63,14 +70,76 @@ def root_path():
     )
 
 
-@app.exception_handler(Exception)
-async def global_exception_handler(request: Request, exc: Exception):
-    logger.exception(
-        "Unhandled error processing %s %s: %s", request.method, request.url.path, exc
+# =====================================================================
+# GLOBAL EXCEPTION HANDLERS
+# =====================================================================
+
+
+@app.exception_handler(AppException)
+async def app_exception_handler(request: Request, exc: AppException):
+    logger.warning(
+        "Application exception processing %s %s: [%s] %s",
+        request.method,
+        request.url.path,
+        exc.status_code,
+        exc.detail,
+    )
+    headers = None
+    if exc.status_code == status.HTTP_401_UNAUTHORIZED:
+        headers = {"WWW-Authenticate": "Bearer"}
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail},
+        headers=headers,
+    )
+
+
+@app.exception_handler(jwt.InvalidSignatureError)
+async def jwt_invalid_signature_handler(
+    request: Request, exc: jwt.InvalidSignatureError
+):
+    logger.warning(
+        "JWT signature verification failed on %s %s: %s",
+        request.method,
+        request.url.path,
+        exc,
     )
     return JSONResponse(
-        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={"detail": "Internal Server Error"},
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        content={"detail": "Invalid token signature"},
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
+@app.exception_handler(jwt.ExpiredSignatureError)
+async def jwt_expired_signature_handler(
+    request: Request, exc: jwt.ExpiredSignatureError
+):
+    logger.warning(
+        "JWT signature expired on %s %s: %s",
+        request.method,
+        request.url.path,
+        exc,
+    )
+    return JSONResponse(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        content={"detail": "Token has expired"},
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
+@app.exception_handler(jwt.PyJWTError)
+async def pyjwt_error_handler(request: Request, exc: jwt.PyJWTError):
+    logger.warning(
+        "PyJWT error on %s %s: %s",
+        request.method,
+        request.url.path,
+        exc,
+    )
+    return JSONResponse(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        content={"detail": "Could not validate credentials"},
+        headers={"WWW-Authenticate": "Bearer"},
     )
 
 
@@ -82,4 +151,15 @@ async def email_exception_handler(request: Request, exc: EmailException):
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={"detail": "Email Service Error"},
+    )
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.exception(
+        "Unhandled error processing %s %s: %s", request.method, request.url.path, exc
+    )
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={"detail": "Internal Server Error"},
     )

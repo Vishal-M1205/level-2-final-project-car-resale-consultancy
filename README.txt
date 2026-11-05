@@ -148,3 +148,16 @@ Vishal@1205
 
 sanjaysammathew05@gmail.com
 Sanjay@1205
+
+            "brand": "Maruti Suzuki",
+            "model": "Swift",
+            "variant": "ZXI Plus",
+            "registration_number": "TESTCON01",
+            "manufacturing_year": 2022,
+            "fuel_type": "petrol",
+            "transmission": "manual",
+            "kilometers_driven": 18000,
+            "ownership_count": 1,
+            "expected_price": 650000.00,
+            "seating_capacity": 5,
+            "description": "TESTCON Single owner well maintained car"

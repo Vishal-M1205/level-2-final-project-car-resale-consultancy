@@ -1,6 +1,11 @@
-from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.exceptions import (
+    BadRequestException,
+    ConflictException,
+    ForbiddenException,
+    NotFoundException,
+)
 from app.models.user import User
 from app.models.vehicle_inspection import VehicleInspection
 from app.repositories.interfaces.user_interface import UserInterface
@@ -12,6 +17,7 @@ from app.repositories.interfaces.vehicle_listing_interface import (
     VehicleListingInterface,
 )
 from app.schemas.vehicle_inspection import (
+    CustomerInspectionFilterParams,
     InspectionFilterParams,
     VehicleInspectionDetailSubmission,
 )
@@ -80,36 +86,25 @@ class VehicleInspectionService:
             )
 
             if not existing_inspection:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Inspection not found",
-                )
+                raise NotFoundException("Inspection not found")
 
             if existing_inspection.consultant_id == consultant.id:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="You have already claimed this inspection",
-                )
+                raise ConflictException("You have already claimed this inspection")
 
             if existing_inspection.consultant_id is not None:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="Inspection is already claimed by another consultant",
+                raise ConflictException(
+                    "Inspection is already claimed by another consultant"
                 )
 
             if existing_inspection.status != "PENDING":
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="Inspection is not in pending status",
-                )
+                raise ConflictException("Inspection is not in pending status")
 
             vehicle = await self.vehicle_repository.get_vehicle_by_id(
                 existing_inspection.vehicle_id
             )
             if vehicle and vehicle.status == "deactivated":
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Cannot claim inspection for a deactivated vehicle",
+                raise BadRequestException(
+                    "Cannot claim inspection for a deactivated vehicle"
                 )
 
             claimed_inspection = (
@@ -119,9 +114,8 @@ class VehicleInspectionService:
             )
 
             if not claimed_inspection:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="Failed to claim inspection. It may have just been claimed by another consultant.",
+                raise ConflictException(
+                    "Failed to claim inspection. It may have just been claimed by another consultant."
                 )
 
             vehicle_id = claimed_inspection.vehicle_id
@@ -159,34 +153,23 @@ class VehicleInspectionService:
                 )
             )
             if not existing_inspection:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Inspection not found",
-                )
+                raise NotFoundException("Inspection not found")
 
             if existing_inspection.consultant_id is None:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Inspection is not currently claimed",
-                )
+                raise BadRequestException("Inspection is not currently claimed")
 
             if user.role != "ADMIN" and existing_inspection.consultant_id != user.id:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="You can only unclaim an inspection claimed by you",
+                raise ForbiddenException(
+                    "You can only unclaim an inspection claimed by you"
                 )
 
             if existing_inspection.status == "COMPLETED":
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Cannot unclaim an inspection that has already been completed",
+                raise BadRequestException(
+                    "Cannot unclaim an inspection that has already been completed"
                 )
 
             if existing_inspection.status == "CANCELLED":
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Cannot unclaim a cancelled inspection",
-                )
+                raise BadRequestException("Cannot unclaim a cancelled inspection")
 
             await self.vehicle_inspection_repository.unclaim_inspection(inspection_id)
 
@@ -206,10 +189,7 @@ class VehicleInspectionService:
         Marks inspection as CANCELLED, rejects vehicle, and deactivates any active listing.
         """
         if user.role != "ADMIN":
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only Admins are authorized to cancel an inspection",
-            )
+            raise ForbiddenException("Only Admins are authorized to cancel an inspection")
 
         async with self.session.begin():
             existing_inspection = (
@@ -218,36 +198,27 @@ class VehicleInspectionService:
                 )
             )
             if not existing_inspection:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Inspection not found",
-                )
+                raise NotFoundException("Inspection not found")
 
             if existing_inspection.status != "PENDING":
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Cannot cancel an inspection that is in '{existing_inspection.status}' status. Only pending inspections can be cancelled.",
+                raise BadRequestException(
+                    f"Cannot cancel an inspection that is in '{existing_inspection.status}' status. Only pending inspections can be cancelled."
                 )
 
             vehicle = await self.vehicle_repository.get_vehicle_by_id(
                 existing_inspection.vehicle_id
             )
             if not vehicle:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Vehicle not found",
-                )
+                raise NotFoundException("Vehicle not found")
 
             if vehicle.status == "sold":
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Cannot cancel inspection for a vehicle that has already been sold",
+                raise BadRequestException(
+                    "Cannot cancel inspection for a vehicle that has already been sold"
                 )
 
             if vehicle.status == "deactivated":
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Cannot cancel inspection for a deactivated vehicle",
+                raise BadRequestException(
+                    "Cannot cancel inspection for a deactivated vehicle"
                 )
 
             await self.vehicle_inspection_repository.cancel_inspection(inspection_id)
@@ -264,10 +235,35 @@ class VehicleInspectionService:
     async def get_all_inspections(
         self, filters: InspectionFilterParams, current_user: User
     ) -> dict:
+        if current_user.role == "CUSTOMER":
+            raise ForbiddenException(
+                "Customers are not authorized to view the general inspection queue. Please use /api/vehicle-inspections/my-inspections."
+            )
+
+        consultant_id: int | None = None
+        if current_user.role == "CONSULTANT":
+            if filters.mine:
+                consultant_id = current_user.id
+            elif filters.consultant_id is not None:
+                if filters.consultant_id != current_user.id:
+                    raise ForbiddenException(
+                        "Consultants can only filter by their own consultant ID."
+                    )
+                consultant_id = current_user.id
+        elif current_user.role == "ADMIN":
+            consultant_id = filters.consultant_id
+
         async with self.session.begin():
-            consultant_id = current_user.id if filters.mine else None
             return await self.vehicle_inspection_repository.get_inspections(
                 filters=filters, consultant_id=consultant_id
+            )
+
+    async def get_customer_inspections(
+        self, filters: CustomerInspectionFilterParams, current_user: User
+    ) -> dict:
+        async with self.session.begin():
+            return await self.vehicle_inspection_repository.get_inspections(
+                filters=filters, seller_id=current_user.id
             )
 
     async def get_inspection_with_details(
@@ -281,10 +277,7 @@ class VehicleInspectionService:
             )
 
             if not inspection:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Inspection not found",
-                )
+                raise NotFoundException("Inspection not found")
 
             if current_user.role != "ADMIN":
                 if (
@@ -292,10 +285,15 @@ class VehicleInspectionService:
                     and inspection.consultant_id == current_user.id
                 ):
                     pass
+                elif (
+                    current_user.role == "CUSTOMER"
+                    and inspection.vehicle
+                    and inspection.vehicle.seller_id == current_user.id
+                ):
+                    pass
                 else:
-                    raise HTTPException(
-                        status_code=status.HTTP_403_FORBIDDEN,
-                        detail="You are not authorized to view an inspection assigned to another consultant",
+                    raise ForbiddenException(
+                        "You are not authorized to view an inspection assigned to another consultant"
                     )
 
             inspection.documents = (
@@ -321,42 +319,32 @@ class VehicleInspectionService:
                 )
             )
             if not inspection:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Inspection not found",
-                )
+                raise NotFoundException("Inspection not found")
 
             if inspection.status == "CANCELLED":
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Cannot submit or update a cancelled inspection report.",
+                raise BadRequestException(
+                    "Cannot submit or update a cancelled inspection report."
                 )
 
             vehicle = await self.vehicle_repository.get_vehicle_by_id(
                 inspection.vehicle_id
             )
             if not vehicle:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Associated vehicle not found",
-                )
+                raise NotFoundException("Associated vehicle not found")
 
             if vehicle.status in ("sold", "deactivated"):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Cannot update inspection for a vehicle in '{vehicle.status}' status.",
+                raise BadRequestException(
+                    f"Cannot update inspection for a vehicle in '{vehicle.status}' status."
                 )
 
             if inspection.status == "PENDING":
                 if inspection.consultant_id is None:
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="This inspection must be claimed before submitting a report.",
+                    raise BadRequestException(
+                        "This inspection must be claimed before submitting a report."
                     )
                 if user.role != "ADMIN" and inspection.consultant_id != user.id:
-                    raise HTTPException(
-                        status_code=status.HTTP_403_FORBIDDEN,
-                        detail="You are not authorized to submit a report for an inspection claimed by another consultant.",
+                    raise ForbiddenException(
+                        "You are not authorized to submit a report for an inspection claimed by another consultant."
                     )
                 return await self.vehicle_inspection_repository.submit_inspection_report(
                     inspection_id=inspection_id,
@@ -365,15 +353,13 @@ class VehicleInspectionService:
 
             if vehicle.status == "submitted":
                 if user.role != "ADMIN" and inspection.consultant_id != user.id:
-                    raise HTTPException(
-                        status_code=status.HTTP_403_FORBIDDEN,
-                        detail="You are not authorized to update an inspection assigned to another consultant.",
+                    raise ForbiddenException(
+                        "You are not authorized to update an inspection assigned to another consultant."
                     )
             elif vehicle.status in ("approved", "rejected"):
                 if user.role != "ADMIN":
-                    raise HTTPException(
-                        status_code=status.HTTP_403_FORBIDDEN,
-                        detail="Only administrators can modify an inspection report after the vehicle decision has been made.",
+                    raise ForbiddenException(
+                        "Only administrators can modify an inspection report after the vehicle decision has been made."
                     )
 
             updated_inspection = (

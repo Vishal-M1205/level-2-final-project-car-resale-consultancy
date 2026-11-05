@@ -8,6 +8,7 @@ from app.api.dependencies.dependencies import (
 from app.schemas.resale_transaction import (
     CreateResaleTransactionRequest,
     PaginatedTransactionsResponse,
+    ResaleTransactionPatchRequest,
     ResaleTransactionResponse,
     TransactionFilterParams,
 )
@@ -58,6 +59,31 @@ async def get_transactions(
     """
     return await service.get_transactions(
         filters=filters,
+        user=current_user,
+    )
+
+
+@router.patch(
+    "/{transaction_id}",
+    response_model=ResaleTransactionResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Update resale transaction (Admin only)",
+)
+async def patch_transaction(
+    transaction_id: int,
+    patch_data: ResaleTransactionPatchRequest,
+    service: Annotated[
+        ResaleTransactionService, Depends(get_resale_transaction_service)
+    ],
+    current_user=Security(get_current_user, scopes=["transaction:update"]),
+):
+    """
+    Update resale transaction status (DELIVERED, CANCELLED), delivery date, notes, or final price.
+    Restricted to Admin.
+    """
+    return await service.patch_transaction(
+        transaction_id=transaction_id,
+        patch_data=patch_data,
         user=current_user,
     )
 

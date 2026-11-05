@@ -25,7 +25,7 @@ class VehicleSubmission(BaseModel):
     @classmethod
     def validate_registration_number(cls, value: str) -> str:
         reg_number = re.sub(r"[\s\-]", "", value).upper()
-        if not re.match(r"^[A-Z0-9]{4,15}$", reg_number):
+        if not re.match(r"^[A-Z0-9]{10}$", reg_number):
             raise ValueError("Invalid registration number format")
         return reg_number
 
@@ -165,7 +165,9 @@ class VehicleDecisionRequest(BaseModel):
     def validate_action(cls, value: str) -> str:
         act = value.upper().strip()
         if act not in ("APPROVED", "REJECTED", "RESUBMIT"):
-            raise ValueError("Action must be either 'APPROVED', 'REJECTED', or 'RESUBMIT'")
+            raise ValueError(
+                "Action must be either 'APPROVED', 'REJECTED', or 'RESUBMIT'"
+            )
         return act
 
 

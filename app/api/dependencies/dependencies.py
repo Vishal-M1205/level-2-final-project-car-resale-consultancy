@@ -2,7 +2,7 @@ from typing import Annotated
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer, SecurityScopes
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.core.security import decode_token
+from app.core.security import decode_access_token
 from app.database.database import get_db_connection
 from app.repositories.implementations.user_repository import UserRepository
 from app.repositories.interfaces.user_interface import UserInterface
@@ -31,6 +31,12 @@ from app.repositories.implementations.resale_transaction_repository import (
 )
 from app.repositories.interfaces.resale_transaction_interface import (
     ResaleTransactionInterface,
+)
+from app.exceptions import (
+    ForbiddenException,
+    SignatureError,
+    TokenExpiredException,
+    UnauthorizedException,
 )
 from app.schemas.auth import TokenData
 from app.services.auth_service import AuthService
@@ -175,6 +181,7 @@ def get_resale_transaction_service(
     ],
     vehicle_repository: Annotated[VehicleInterface, Depends(get_vehicle_repository)],
     user_repository: Annotated[UserInterface, Depends(get_user_repository)],
+    email_service: Annotated[EmailService, Depends(get_email_service)],
 ) -> ResaleTransactionService:
     return ResaleTransactionService(
         session,
@@ -182,6 +189,7 @@ def get_resale_transaction_service(
         vehicle_listing_repository,
         vehicle_repository,
         user_repository,
+        email_service,
     )
 
 
@@ -201,17 +209,14 @@ async def get_current_user(
     user_repository: Annotated[UserInterface, Depends(get_user_repository)],
     session: DB_Session,
 ):
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-    )
+    credentials_exception = UnauthorizedException("Could not validate credentials")
     try:
-        payload = decode_token(token)
+        payload = decode_access_token(token)
 
         if (
-            payload["sub"] is None
-            or payload["role"] is None
-            or payload["type"] != "access"
+            payload.get("sub") is None
+            or payload.get("role") is None
+            or payload.get("type") != "access"
         ):
             raise credentials_exception
 
@@ -226,12 +231,16 @@ async def get_current_user(
 
         for required_scopes in security_scopes.scopes:
             if required_scopes not in token_data.scopes:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Not enough permission",
-                )
+                raise ForbiddenException("Not enough permission")
 
         return user
 
-    except (jwt.PyJWTError, Exception):
+    except (
+        SignatureError,
+        TokenExpiredException,
+        ForbiddenException,
+        UnauthorizedException,
+    ):
         raise
+    except Exception:
+        raise credentials_exception

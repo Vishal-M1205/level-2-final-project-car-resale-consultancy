@@ -1,9 +1,15 @@
-from typing import Optional
 from datetime import datetime, timedelta, timezone
+from typing import Optional
+import jwt
 from pwdlib import PasswordHash
+
 from app.core.config import config
 from app.core.scopes import ROLE_SCOPES
-import jwt
+from app.exceptions import (
+    InvalidTokenException,
+    SignatureError,
+    TokenExpiredException,
+)
 
 password_hash = PasswordHash.recommended()
 
@@ -52,7 +58,14 @@ def create_refresh_token(token_payload):
     )
 
 
-def decode_token(token: str):
-    return jwt.decode(
-        jwt=token, key=config.jwt_secret_key, algorithms=[config.jwt_algorithm]
-    )
+def decode_access_token(token: str):
+    try:
+        return jwt.decode(
+            jwt=token, key=config.jwt_secret_key, algorithms=[config.jwt_algorithm]
+        )
+    except jwt.InvalidSignatureError as e:
+        raise SignatureError("Invalid token signature") from e
+    except jwt.ExpiredSignatureError as e:
+        raise TokenExpiredException("Token has expired") from e
+    except jwt.PyJWTError as e:
+        raise InvalidTokenException("Invalid token") from e

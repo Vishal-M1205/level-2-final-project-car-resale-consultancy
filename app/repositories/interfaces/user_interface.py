@@ -33,3 +33,7 @@ class UserInterface(ABC):
     @abstractmethod
     async def soft_delete_user(self, user_id: int) -> User | None:
         pass
+
+    @abstractmethod
+    async def update_user(self, user_id: int, update_data: dict) -> User | None:
+        pass

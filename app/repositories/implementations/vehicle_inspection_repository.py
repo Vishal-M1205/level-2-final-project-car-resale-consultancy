@@ -9,6 +9,7 @@ from app.repositories.interfaces.vehicle_inspection_interface import (
     VehicleInspectionInterface,
 )
 from app.schemas.vehicle_inspection import (
+    CustomerInspectionFilterParams,
     InspectionFilterParams,
     VehicleInspectionDetailSubmission,
 )
@@ -19,7 +20,10 @@ class VehicleInspectionRepository(VehicleInspectionInterface):
         self.session = session
 
     async def get_inspections(
-        self, filters: InspectionFilterParams, consultant_id: int | None = None
+        self,
+        filters: InspectionFilterParams | CustomerInspectionFilterParams,
+        consultant_id: int | None = None,
+        seller_id: int | None = None,
     ) -> dict:
         offset = (filters.page - 1) * filters.limit
         conditions = [Vehicle.status != "deactivated"]
@@ -27,21 +31,30 @@ class VehicleInspectionRepository(VehicleInspectionInterface):
         if filters.status:
             conditions.append(VehicleInspection.status == filters.status.upper())
 
-        if filters.is_claimed is True:
+        is_claimed = getattr(filters, "is_claimed", None)
+        if is_claimed is True:
             conditions.append(VehicleInspection.consultant_id.is_not(None))
-        elif filters.is_claimed is False:
+        elif is_claimed is False:
             conditions.append(VehicleInspection.consultant_id.is_(None))
 
         if consultant_id is not None:
             conditions.append(VehicleInspection.consultant_id == consultant_id)
+
+        if seller_id is not None:
+            conditions.append(Vehicle.seller_id == seller_id)
+
+        vehicle_id = getattr(filters, "vehicle_id", None)
+        if vehicle_id is not None:
+            conditions.append(VehicleInspection.vehicle_id == vehicle_id)
 
         if filters.inspection_date:
             conditions.append(
                 func.date(VehicleInspection.inspection_date) == filters.inspection_date
             )
 
-        if filters.vehicle_status:
-            conditions.append(Vehicle.status == filters.vehicle_status)
+        vehicle_status = getattr(filters, "vehicle_status", None)
+        if vehicle_status:
+            conditions.append(Vehicle.status == vehicle_status)
 
         stmnt = (
             select(VehicleInspection)

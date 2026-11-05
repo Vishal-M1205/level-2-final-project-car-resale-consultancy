@@ -1,6 +1,10 @@
-from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.exceptions import (
+    BadRequestException,
+    ForbiddenException,
+    NotFoundException,
+)
 from app.models.user import User
 from app.models.vehicle_listing import VehicleListing
 from app.repositories.interfaces.vehicle_interface import VehicleInterface
@@ -29,34 +33,28 @@ class VehicleListingService:
         async with self.session.begin():
             listing = await self.vehicle_listing_repository.get_listing_by_id(listing_id)
             if not listing or (listing.vehicle and listing.vehicle.status == "deactivated"):
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Listing not found.",
-                )
+                raise NotFoundException("Listing not found.")
             return listing
 
     async def patch_listing(
         self, listing_id: int, patch_data: ListingPatchRequest, user: User
     ) -> VehicleListing:
         if user.role != "ADMIN":
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only administrators can update listings.",
+            raise ForbiddenException("Only administrators can update listings.")
+
+        if patch_data.status == "SOLD":
+            raise BadRequestException(
+                "Cannot manually set status to 'SOLD'. Listings automatically transition to 'SOLD' when a resale transaction is completed."
             )
 
         async with self.session.begin():
             listing = await self.vehicle_listing_repository.get_listing_by_id(listing_id)
             if not listing:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Listing not found.",
-                )
+                raise NotFoundException("Listing not found.")
 
-            # If status changed to SOLD, sync vehicle.status to "sold"
-            if patch_data.status == "SOLD":
-                await self.vehicle_repository.update_vehicle_status(
-                    vehicle_id=listing.vehicle_id,
-                    status="sold",
+            if listing.status == "SOLD":
+                raise BadRequestException(
+                    "Cannot modify a listing that has already been sold."
                 )
 
             updated = await self.vehicle_listing_repository.update_listing(
@@ -66,4 +64,3 @@ class VehicleListingService:
                 description=patch_data.listing_description,
             )
             return updated
-

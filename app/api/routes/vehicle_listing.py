@@ -64,8 +64,9 @@ async def patch_listing(
     current_user=Security(get_current_user, scopes=["listing:update"]),
 ):
     """
-    Update a listing's status (e.g. mark SOLD) or adjust listed price.
-    Restricted to Admin. Marking listing SOLD auto-syncs vehicle status to 'sold'.
+    Update a listing's status (ACTIVE or INACTIVE) or adjust listed price and description.
+    Restricted to Admin. Note: Status cannot be manually set to 'SOLD'; listings automatically
+    transition to 'SOLD' when a resale transaction is completed.
     """
     return await service.patch_listing(
         listing_id=listing_id,

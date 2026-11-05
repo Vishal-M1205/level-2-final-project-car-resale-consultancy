@@ -39,8 +39,12 @@ class ListingPatchRequest(BaseModel):
     def validate_status(cls, value: str | None) -> str | None:
         if value is not None:
             val = value.upper().strip()
-            if val not in VEHICLE_LISTING_STATUSES:
-                raise ValueError(f"Status must be one of {VEHICLE_LISTING_STATUSES}")
+            if val == "SOLD":
+                raise ValueError(
+                    "Cannot manually set status to 'SOLD'. Listings automatically transition to 'SOLD' when a resale transaction is completed."
+                )
+            if val not in ("ACTIVE", "INACTIVE"):
+                raise ValueError("Status must be either 'ACTIVE' or 'INACTIVE'")
             return val
         return value
 

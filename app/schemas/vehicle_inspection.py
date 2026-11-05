@@ -22,9 +22,22 @@ class UserBasicResponse(BaseModel):
 
 
 class InspectionFilterParams(BaseModel):
+    vehicle_id: int | None = None
     status: str | None = None
     is_claimed: bool | None = None
+    consultant_id: int | None = None
     mine: bool = False
+    inspection_date: date | None = None
+    vehicle_status: str | None = None
+    page: int = Field(default=1, ge=1)
+    limit: int = Field(default=10, ge=1, le=50)
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+
+class CustomerInspectionFilterParams(BaseModel):
+    vehicle_id: int | None = None
+    status: str | None = None
     inspection_date: date | None = None
     vehicle_status: str | None = None
     page: int = Field(default=1, ge=1)

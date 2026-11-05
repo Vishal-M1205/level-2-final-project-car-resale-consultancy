@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 
 from app.models.vehicle_inspection import VehicleInspection
 from app.schemas.vehicle_inspection import (
+    CustomerInspectionFilterParams,
     InspectionFilterParams,
     VehicleInspectionDetailSubmission,
 )
@@ -11,7 +12,10 @@ class VehicleInspectionInterface(ABC):
 
     @abstractmethod
     async def get_inspections(
-        self, filters: InspectionFilterParams, consultant_id: int | None = None
+        self,
+        filters: InspectionFilterParams | CustomerInspectionFilterParams,
+        consultant_id: int | None = None,
+        seller_id: int | None = None,
     ) -> dict:
         pass
 

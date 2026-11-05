@@ -1,7 +1,12 @@
-from fastapi import HTTPException, UploadFile, status
+from fastapi import UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.constants import DOCUMENT_TYPES
+from app.exceptions import (
+    BadRequestException,
+    ForbiddenException,
+    NotFoundException,
+)
 from app.models.user import User
 from app.models.vehicle_document import VehicleDocument
 from app.repositories.interfaces.vehicle_document_interface import (
@@ -37,9 +42,8 @@ class VehicleDocumentService:
 
         # Validate document type in allowed types
         if doc_type not in DOCUMENT_TYPES:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid document type '{document_type}'. Allowed types: {DOCUMENT_TYPES}",
+            raise BadRequestException(
+                f"Invalid document type '{document_type}'. Allowed types: {DOCUMENT_TYPES}"
             )
 
         # Validate the file to check it is empty or greater than the max size, whether .pdf or not
@@ -50,22 +54,17 @@ class VehicleDocumentService:
 
                 vehicle = await self.vehicle_repository.get_vehicle_by_id(vehicle_id)
                 if not vehicle:
-                    raise HTTPException(
-                        status_code=status.HTTP_404_NOT_FOUND,
-                        detail="Vehicle not found.",
-                    )
+                    raise NotFoundException("Vehicle not found.")
 
                 if user.role != "ADMIN" and vehicle.seller_id != user.id:
-                    raise HTTPException(
-                        status_code=status.HTTP_403_FORBIDDEN,
-                        detail="You do not have permission to upload documents for this vehicle.",
+                    raise ForbiddenException(
+                        "You do not have permission to upload documents for this vehicle."
                     )
 
                 # Documents can only be uploaded/updated while vehicle is in submitted or rejected status
                 if vehicle.status not in ("submitted", "rejected"):
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"Cannot upload documents. Vehicle status is '{vehicle.status}', documents can only be submitted while 'submitted' or 'rejected'.",
+                    raise BadRequestException(
+                        f"Cannot upload documents. Vehicle status is '{vehicle.status}', documents can only be submitted while 'submitted' or 'rejected'."
                     )
 
                 saved_path = await save_vehicle_document_file(file, vehicle_id)
@@ -99,16 +98,12 @@ class VehicleDocumentService:
         async with self.session.begin():
             vehicle = await self.vehicle_repository.get_vehicle_by_id(vehicle_id)
             if not vehicle:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Vehicle not found.",
-                )
+                raise NotFoundException("Vehicle not found.")
 
             # Customers can only view documents of their own vehicles
             if user.role == "CUSTOMER" and vehicle.seller_id != user.id:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="You do not have permission to view documents for this vehicle.",
+                raise ForbiddenException(
+                    "You do not have permission to view documents for this vehicle."
                 )
 
             return await self.vehicle_document_repository.get_documents_by_vehicle_id(
@@ -123,39 +118,32 @@ class VehicleDocumentService:
     ) -> dict:
         doc_type = document_type.upper().strip()
         if doc_type not in DOCUMENT_TYPES:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid document type '{document_type}'. Allowed types: {DOCUMENT_TYPES}",
+            raise BadRequestException(
+                f"Invalid document type '{document_type}'. Allowed types: {DOCUMENT_TYPES}"
             )
 
         file_to_delete: str | None = None
         async with self.session.begin():
             vehicle = await self.vehicle_repository.get_vehicle_by_id(vehicle_id)
             if not vehicle:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Vehicle not found.",
-                )
+                raise NotFoundException("Vehicle not found.")
 
             if user.role != "ADMIN" and vehicle.seller_id != user.id:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="You do not have permission to delete documents for this vehicle.",
+                raise ForbiddenException(
+                    "You do not have permission to delete documents for this vehicle."
                 )
 
             if vehicle.status != "submitted":
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Cannot delete document. Documents can only be deleted when vehicle status is 'submitted' (current status: '{vehicle.status}').",
+                raise BadRequestException(
+                    f"Cannot delete document. Documents can only be deleted when vehicle status is 'submitted' (current status: '{vehicle.status}')."
                 )
 
             doc = await self.vehicle_document_repository.get_document_by_type(
                 vehicle_id, doc_type
             )
             if not doc:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Document of type '{doc_type}' not found for this vehicle.",
+                raise NotFoundException(
+                    f"Document of type '{doc_type}' not found for this vehicle."
                 )
 
             file_to_delete = doc.document_url

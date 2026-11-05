@@ -4,7 +4,13 @@ from fastapi import APIRouter, Security, status, Depends
 from fastapi.security import OAuth2PasswordRequestForm
 
 from app.api.dependencies.dependencies import get_auth_service, get_current_user
-from app.schemas.auth import Login, RegisterResponse, RegisterUser, Token
+from app.schemas.auth import (
+    Login,
+    RefreshTokenRequest,
+    RegisterResponse,
+    RegisterUser,
+    Token,
+)
 from app.services.auth_service import AuthService
 
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
@@ -45,3 +51,12 @@ async def login(
     return await service.login(
         Login(email=login_credentials.username, password=login_credentials.password)
     )
+
+
+@router.post("/refresh", response_model=Token, status_code=status.HTTP_200_OK)
+async def refresh_token(
+    refresh_request: RefreshTokenRequest,
+    service: Annotated[AuthService, Depends(get_auth_service)],
+):
+    """Generate a new access token using a valid refresh token."""
+    return await service.refresh_access_token(refresh_request.refresh_token)

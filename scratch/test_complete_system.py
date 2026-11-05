@@ -115,7 +115,7 @@ async def run_complete_system_verification():
         print(f"[2] Test Users Prepared (Seller #{seller_user.id}, Buyer #{buyer_user.id}, Consultant #{consultant_user.id})")
 
         # 3. Vehicle Submission
-        reg_no = f"TN01{random_string(4)}"
+        reg_no = f"TN01AB{random.randint(1000, 9999)}"
         vehicle_payload = {
             "brand": "Hyundai",
             "model": "Creta",
@@ -235,7 +235,15 @@ async def run_complete_system_verification():
         )
         assert patch_res.status_code == 200
         assert Decimal(str(patch_res.json()["listed_price"])) == Decimal("1100000.00")
-        print(f"[7] Vehicle Listings Module Verified (Browse, Detail View, and Admin PATCH).")
+
+        # Verify manual PATCH with status="SOLD" is rejected
+        patch_sold_res = await ac.patch(
+            f"/api/listings/{listing_id}",
+            json={"status": "SOLD"},
+            headers=admin_h,
+        )
+        assert patch_sold_res.status_code in (400, 422), f"PATCH listing status='SOLD' must be rejected: {patch_sold_res.text}"
+        print(f"[7] Vehicle Listings Module Verified (Browse, Detail View, Admin PATCH, and 'SOLD' restriction).")
 
         # 7. Test Resale Transactions Module
         tx_payload = {
@@ -273,7 +281,7 @@ async def run_complete_system_verification():
 
         # 8. Test Users Module & Cascade Soft Delete
         # Create a second vehicle & listing for seller to test cascade deactivation
-        reg_no_2 = f"TN02{random_string(4)}"
+        reg_no_2 = f"TN02CD{random.randint(1000, 9999)}"
         v2_payload = {
             "brand": "Maruti",
             "model": "Swift",
