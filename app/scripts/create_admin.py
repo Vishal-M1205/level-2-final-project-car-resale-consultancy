@@ -1,4 +1,5 @@
 import logging
+
 from app.core.security import hash_password
 from app.database.database import AsyncSessionMaker
 from app.models.user import User

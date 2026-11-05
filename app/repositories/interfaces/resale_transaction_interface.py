@@ -7,7 +7,6 @@ from app.schemas.resale_transaction import TransactionFilterParams
 
 
 class ResaleTransactionInterface(ABC):
-
     @abstractmethod
     async def create_transaction(
         self,
@@ -31,9 +30,7 @@ class ResaleTransactionInterface(ABC):
         pass
 
     @abstractmethod
-    async def get_transaction_by_id(
-        self, transaction_id: int
-    ) -> ResaleTransaction | None:
+    async def get_transaction_by_id(self, transaction_id: int) -> ResaleTransaction | None:
         pass
 
     @abstractmethod
@@ -41,4 +38,3 @@ class ResaleTransactionInterface(ABC):
         self, transaction_id: int, update_data: dict
     ) -> ResaleTransaction | None:
         pass
-

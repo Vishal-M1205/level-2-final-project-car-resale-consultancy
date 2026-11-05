@@ -1,9 +1,10 @@
 import base64
-from datetime import datetime, timezone
 import json
 import logging
 import time
 import uuid
+from datetime import datetime, timezone
+
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
@@ -19,9 +20,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
     4. Logs the incoming request, status code, and time taken using the configured logger.
     """
 
-    async def dispatch(
-        self, request: Request, call_next: RequestResponseEndpoint
-    ) -> Response:
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         # 1. Correlation ID: Extract from incoming headers or generate a new UUID
         correlation_id = request.headers.get("X-Correlation-ID") or str(uuid.uuid4())
         request.state.correlation_id = correlation_id
@@ -60,9 +59,9 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             "timestamp": request_time,
             "path": request.url.path,
         }
-        encoded_cookie_value = base64.b64encode(
-            json.dumps(cookie_details).encode("utf-8")
-        ).decode("utf-8")
+        encoded_cookie_value = base64.b64encode(json.dumps(cookie_details).encode("utf-8")).decode(
+            "utf-8"
+        )
 
         response.set_cookie(
             key="request_context",

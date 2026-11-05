@@ -1,7 +1,9 @@
 import io
 import shutil
 from pathlib import Path
+
 import pytest
+
 from tests.conftest import create_db_vehicle
 
 
@@ -52,7 +54,13 @@ def test_upload_document_replace_existing(client, customer_user, customer_header
         f"/api/vehicles/{vehicle['id']}/documents",
         headers=customer_headers,
         data={"document_type": "INSURANCE"},
-        files={"file": ("updated_insurance.pdf", io.BytesIO(b"%PDF-1.4 replacement"), "application/pdf")},
+        files={
+            "file": (
+                "updated_insurance.pdf",
+                io.BytesIO(b"%PDF-1.4 replacement"),
+                "application/pdf",
+            )
+        },
     )
     assert res.status_code == 201
     assert res.json()["original_filename"] == "updated_insurance.pdf"
@@ -128,6 +136,7 @@ def test_delete_vehicle_document_when_vehicle_approved_rejected(
     client, customer_user, customer_headers
 ):
     import psycopg
+
     from tests.conftest import config
 
     vehicle = create_db_vehicle(seller_id=customer_user["id"], status="submitted")
@@ -154,4 +163,3 @@ def test_delete_vehicle_document_when_vehicle_approved_rejected(
         headers=customer_headers,
     )
     assert response.status_code == 400
-

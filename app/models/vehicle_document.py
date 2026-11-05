@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import TYPE_CHECKING
+
 from sqlalchemy import (
     CheckConstraint,
     DateTime,
@@ -26,9 +27,7 @@ class VehicleDocument(Base):
             f"document_type IN {DOCUMENT_TYPES}",
             name="vehicle_document_type_check",
         ),
-        UniqueConstraint(
-            "vehicle_id", "document_type", name="uq_vehicle_document_type"
-        ),
+        UniqueConstraint("vehicle_id", "document_type", name="uq_vehicle_document_type"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)

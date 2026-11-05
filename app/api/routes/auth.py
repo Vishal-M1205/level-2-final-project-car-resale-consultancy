@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Security, status, Depends
+from fastapi import APIRouter, Depends, Security, status
 from fastapi.security import OAuth2PasswordRequestForm
 
 from app.api.dependencies.dependencies import get_auth_service, get_current_user
@@ -20,6 +20,8 @@ router = APIRouter(prefix="/api/auth", tags=["Authentication"])
     "/register/user",
     response_model=RegisterResponse,
     status_code=status.HTTP_201_CREATED,
+    summary="Register a customer account",
+    description="Registers a new customer user account and sends a welcome confirmation email.",
 )
 async def register_user(
     service: Annotated[AuthService, Depends(get_auth_service)], user_data: RegisterUser
@@ -32,6 +34,8 @@ async def register_user(
     "/register/consultant",
     response_model=RegisterResponse,
     status_code=status.HTTP_201_CREATED,
+    summary="Register a consultant account (Admin only)",
+    description="Registers an official inspection consultant account. Restricted to Admin.",
 )
 async def register_consultant(
     service: Annotated[AuthService, Depends(get_auth_service)],
@@ -42,7 +46,13 @@ async def register_consultant(
     return await service.register_consultant(consultant_data)
 
 
-@router.post("/login", response_model=Token, status_code=status.HTTP_200_OK)
+@router.post(
+    "/login",
+    response_model=Token,
+    status_code=status.HTTP_200_OK,
+    summary="OAuth2 user login",
+    description="Authenticates customer, consultant, or admin credentials and returns JWT access and refresh tokens.",
+)
 async def login(
     service: Annotated[AuthService, Depends(get_auth_service)],
     login_credentials: Annotated[OAuth2PasswordRequestForm, Depends()],
@@ -53,7 +63,13 @@ async def login(
     )
 
 
-@router.post("/refresh", response_model=Token, status_code=status.HTTP_200_OK)
+@router.post(
+    "/refresh",
+    response_model=Token,
+    status_code=status.HTTP_200_OK,
+    summary="Refresh access token",
+    description="Generates a new access token using a valid unexpired refresh token.",
+)
 async def refresh_token(
     refresh_request: RefreshTokenRequest,
     service: Annotated[AuthService, Depends(get_auth_service)],

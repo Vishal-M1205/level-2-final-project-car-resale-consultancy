@@ -6,7 +6,6 @@ from app.schemas.vehicle_listing import ListingFilterParams
 
 
 class VehicleListingInterface(ABC):
-
     @abstractmethod
     async def create_listing(
         self,

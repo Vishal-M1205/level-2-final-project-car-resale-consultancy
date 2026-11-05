@@ -30,15 +30,15 @@ def test_get_all_inspections_filters(client, consultant_headers, customer_user, 
     assert res.json()["inspections"][0]["id"] == insp1["id"]
 
     # Filter unclaimed
-    res_unclaimed = client.get("/api/vehicle-inspections/?is_claimed=false", headers=consultant_headers)
+    res_unclaimed = client.get(
+        "/api/vehicle-inspections/?is_claimed=false", headers=consultant_headers
+    )
     assert res_unclaimed.status_code == 200
     unclaimed_ids = [i["id"] for i in res_unclaimed.json()["inspections"]]
     assert insp1["id"] in unclaimed_ids
 
 
-def test_get_my_inspections_customer_success(
-    client, customer_user, buyer_user, customer_headers
-):
+def test_get_my_inspections_customer_success(client, customer_user, buyer_user, customer_headers):
     v1 = create_db_vehicle(seller_id=customer_user["id"], registration_number="TN01AA0005")
     insp1 = create_db_inspection(vehicle_id=v1["id"])
     v2 = create_db_vehicle(seller_id=buyer_user["id"], registration_number="TN01AA0006")
@@ -71,7 +71,9 @@ def test_claim_inspection_already_claimed_conflict(
     client, consultant_headers, consultant_user, customer_user
 ):
     v = create_db_vehicle(seller_id=customer_user["id"])
-    insp = create_db_inspection(vehicle_id=v["id"], consultant_id=consultant_user["id"], status="PENDING")
+    insp = create_db_inspection(
+        vehicle_id=v["id"], consultant_id=consultant_user["id"], status="PENDING"
+    )
 
     response = client.post(
         f"/api/vehicle-inspections/{insp['id']}/claim",
@@ -84,7 +86,9 @@ def test_unclaim_inspection_consultant_success(
     client, consultant_headers, consultant_user, customer_user
 ):
     v = create_db_vehicle(seller_id=customer_user["id"])
-    insp = create_db_inspection(vehicle_id=v["id"], consultant_id=consultant_user["id"], status="PENDING")
+    insp = create_db_inspection(
+        vehicle_id=v["id"], consultant_id=consultant_user["id"], status="PENDING"
+    )
 
     response = client.post(
         f"/api/vehicle-inspections/{insp['id']}/unclaim",
@@ -98,7 +102,9 @@ def test_submit_inspection_report_success(
     client, consultant_headers, consultant_user, customer_user
 ):
     v = create_db_vehicle(seller_id=customer_user["id"])
-    insp = create_db_inspection(vehicle_id=v["id"], consultant_id=consultant_user["id"], status="PENDING")
+    insp = create_db_inspection(
+        vehicle_id=v["id"], consultant_id=consultant_user["id"], status="PENDING"
+    )
 
     report_payload = {
         "condition": "good",
@@ -131,4 +137,3 @@ def test_cancel_inspection_admin_success(client, admin_headers, customer_user):
     data = response.json()
     assert data["inspection_status"] == "CANCELLED"
     assert data["vehicle_status"] == "rejected"
-

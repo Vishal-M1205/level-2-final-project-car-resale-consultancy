@@ -1,4 +1,5 @@
 from datetime import datetime
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.exceptions import (
@@ -6,7 +7,6 @@ from app.exceptions import (
     ForbiddenException,
     NotFoundException,
 )
-
 from app.models.resale_transaction import ResaleTransaction
 from app.models.user import User
 from app.models.vehicle import Vehicle
@@ -55,9 +55,7 @@ class ResaleTransactionService:
             transaction.delivery_date.strftime("%Y-%m-%d %H:%M")
             if isinstance(transaction.delivery_date, datetime)
             else (
-                str(transaction.delivery_date)
-                if transaction.delivery_date
-                else "To be scheduled"
+                str(transaction.delivery_date) if transaction.delivery_date else "To be scheduled"
             )
         )
         notes_str = transaction.delivery_notes or "Standard handover"
@@ -211,16 +209,12 @@ class ResaleTransactionService:
         self, request: CreateResaleTransactionRequest, user: User
     ) -> ResaleTransaction:
         if user.role != "ADMIN":
-            raise ForbiddenException(
-                "Only administrators can record resale transactions."
-            )
+            raise ForbiddenException("Only administrators can record resale transactions.")
 
         email_payload = None
 
         async with self.session.begin():
-            listing = await self.vehicle_listing_repository.get_listing_by_id(
-                request.listing_id
-            )
+            listing = await self.vehicle_listing_repository.get_listing_by_id(request.listing_id)
             if not listing:
                 raise NotFoundException("Vehicle listing not found.")
 
@@ -229,9 +223,7 @@ class ResaleTransactionService:
                     f"Cannot record sale for listing in '{listing.status}' status. Only ACTIVE listings can be sold."
                 )
 
-            vehicle = await self.vehicle_repository.get_vehicle_by_id(
-                listing.vehicle_id
-            )
+            vehicle = await self.vehicle_repository.get_vehicle_by_id(listing.vehicle_id)
             if not vehicle or vehicle.status == "deactivated":
                 raise BadRequestException(
                     "Associated vehicle is not valid or has been deactivated."
@@ -248,9 +240,7 @@ class ResaleTransactionService:
 
             consultant = None
             if request.consultant_id is not None:
-                consultant = await self.user_repository.get_user_by_id(
-                    request.consultant_id
-                )
+                consultant = await self.user_repository.get_user_by_id(request.consultant_id)
                 if not consultant:
                     raise NotFoundException("Consultant not found.")
 
@@ -288,7 +278,6 @@ class ResaleTransactionService:
                     consultant=consultant,
                 )
         if email_payload:
-
             try:
                 await self.email_service.send_mail(email_payload)
             except Exception:
@@ -296,9 +285,7 @@ class ResaleTransactionService:
 
         return transaction
 
-    async def get_transactions(
-        self, filters: TransactionFilterParams, user: User
-    ) -> dict:
+    async def get_transactions(self, filters: TransactionFilterParams, user: User) -> dict:
         async with self.session.begin():
             return await self.resale_transaction_repository.get_transactions(
                 filters=filters,
@@ -313,9 +300,7 @@ class ResaleTransactionService:
         user: User,
     ) -> ResaleTransaction:
         if user.role != "ADMIN":
-            raise ForbiddenException(
-                "Only administrators can update resale transactions."
-            )
+            raise ForbiddenException("Only administrators can update resale transactions.")
 
         update_dict = patch_data.model_dump(exclude_unset=True)
         if not update_dict:
@@ -324,16 +309,12 @@ class ResaleTransactionService:
         email_payload = None
 
         async with self.session.begin():
-            tx = await self.resale_transaction_repository.get_transaction_by_id(
-                transaction_id
-            )
+            tx = await self.resale_transaction_repository.get_transaction_by_id(transaction_id)
             if not tx:
                 raise NotFoundException("Resale transaction not found.")
 
             if tx.status == "CANCELLED" and update_dict.get("status") != "CANCELLED":
-                raise BadRequestException(
-                    "Cannot modify a cancelled resale transaction."
-                )
+                raise BadRequestException("Cannot modify a cancelled resale transaction.")
 
             # If cancelling transaction, restore listing to ACTIVE and vehicle to approved
             if update_dict.get("status") == "CANCELLED" and tx.status != "CANCELLED":
@@ -343,21 +324,15 @@ class ResaleTransactionService:
                 )
                 vehicle = None
                 if tx.listing and tx.listing.vehicle_id:
-                    vehicle = await self.vehicle_repository.get_vehicle_by_id(
-                        tx.listing.vehicle_id
-                    )
+                    vehicle = await self.vehicle_repository.get_vehicle_by_id(tx.listing.vehicle_id)
                     if vehicle:
                         await self.vehicle_repository.update_vehicle_status(
                             vehicle_id=vehicle.id,
                             status="approved",
                         )
 
-                buyer = tx.buyer or await self.user_repository.get_user_by_id(
-                    tx.buyer_id
-                )
-                seller = tx.seller or await self.user_repository.get_user_by_id(
-                    tx.seller_id
-                )
+                buyer = tx.buyer or await self.user_repository.get_user_by_id(tx.buyer_id)
+                seller = tx.seller or await self.user_repository.get_user_by_id(tx.seller_id)
                 if buyer and seller and vehicle:
                     email_payload = self._resale_cancellation_email_payload(
                         buyer=buyer,

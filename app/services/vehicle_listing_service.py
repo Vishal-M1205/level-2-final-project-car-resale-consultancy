@@ -53,9 +53,7 @@ class VehicleListingService:
                 raise NotFoundException("Listing not found.")
 
             if listing.status == "SOLD":
-                raise BadRequestException(
-                    "Cannot modify a listing that has already been sold."
-                )
+                raise BadRequestException("Cannot modify a listing that has already been sold.")
 
             updated = await self.vehicle_listing_repository.update_listing(
                 listing_id=listing_id,

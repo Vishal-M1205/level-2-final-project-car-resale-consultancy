@@ -14,9 +14,7 @@ class EmailService:
     async def send_mail(self, payload: dict):
         for attempt in range(config.max_retries):
             try:
-                response = await self.client.post(
-                    "https://api.mailjet.com/v3.1/send", json=payload
-                )
+                response = await self.client.post("https://api.mailjet.com/v3.1/send", json=payload)
                 if response.status_code == 200:
                     break
                 elif response.status_code in [429, 500, 501, 502]:
@@ -35,9 +33,7 @@ class EmailService:
                     continue
                 response.raise_for_status()
             except httpx.TimeoutException as error:
-                raise EmailException(
-                    f"Timeout Error in MailJet Email Service : {error}"
-                )
+                raise EmailException(f"Timeout Error in MailJet Email Service : {error}")
 
             except httpx.HTTPStatusError as error:
                 raise EmailException(

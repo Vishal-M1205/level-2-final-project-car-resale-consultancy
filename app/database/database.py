@@ -1,8 +1,10 @@
 from collections.abc import AsyncGenerator
-from app.core.config import config
+
 from sqlalchemy import URL
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import AsyncAdaptedQueuePool
+
+from app.core.config import config
 
 conn_url = URL.create(
     drivername=config.database_drivername,

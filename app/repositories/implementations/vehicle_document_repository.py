@@ -21,9 +21,7 @@ class VehicleDocumentRepository(VehicleDocumentInterface):
         result = await self.session.execute(stmnt)
         return result.scalar_one_or_none()
 
-    async def get_documents_by_vehicle_id(
-        self, vehicle_id: int
-    ) -> list[VehicleDocument]:
+    async def get_documents_by_vehicle_id(self, vehicle_id: int) -> list[VehicleDocument]:
         stmnt = (
             select(VehicleDocument)
             .where(VehicleDocument.vehicle_id == vehicle_id)
@@ -61,13 +59,10 @@ class VehicleDocumentRepository(VehicleDocumentInterface):
         await self.session.refresh(new_doc)
         return new_doc, None
 
-    async def delete_document(
-        self, vehicle_id: int, document_type: str
-    ) -> bool:
+    async def delete_document(self, vehicle_id: int, document_type: str) -> bool:
         doc = await self.get_document_by_type(vehicle_id, document_type)
         if not doc:
             return False
         await self.session.delete(doc)
         await self.session.flush()
         return True
-

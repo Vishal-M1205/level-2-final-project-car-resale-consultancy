@@ -1,6 +1,7 @@
 import os
-from pathlib import Path
 import uuid
+from pathlib import Path
+
 import aiofiles
 from fastapi import UploadFile
 
@@ -24,9 +25,7 @@ def validate_pdf_file(file: UploadFile) -> None:
         raise BadRequestException("Uploaded file is empty.")
 
     if file.size > MAX_FILE_SIZE:
-        raise BadRequestException(
-            "File size exceeds the maximum allowed limit of 5MB."
-        )
+        raise BadRequestException("File size exceeds the maximum allowed limit of 5MB.")
 
 
 async def save_vehicle_document_file(file: UploadFile, vehicle_id: int) -> str:

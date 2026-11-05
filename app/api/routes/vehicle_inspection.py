@@ -1,4 +1,5 @@
 from typing import Annotated
+
 from fastapi import APIRouter, Depends, Query, Security, status
 
 from app.api.dependencies.dependencies import (
@@ -26,12 +27,11 @@ router = APIRouter(prefix="/api/vehicle-inspections", tags=["Vehicle Inspections
     response_model=PaginatedInspectionsResponse,
     status_code=status.HTTP_200_OK,
     summary="View vehicle inspections with filters",
+    description="Retrieve a paginated list of vehicle inspections with optional filters for vehicle ID, status, consultant ID, and dates.",
 )
 async def get_all_inspections(
     filters: Annotated[InspectionFilterParams, Query()],
-    service: Annotated[
-        VehicleInspectionService, Depends(get_vehicle_inspection_service)
-    ],
+    service: Annotated[VehicleInspectionService, Depends(get_vehicle_inspection_service)],
     current_user=Security(get_current_user, scopes=["inspection:read"]),
 ):
     """
@@ -51,20 +51,17 @@ async def get_all_inspections(
     response_model=PaginatedInspectionsResponse,
     status_code=status.HTTP_200_OK,
     summary="Get inspections for current customer's vehicles",
+    description="Retrieve a paginated list of vehicle inspections for the logged-in customer's vehicles.",
 )
 async def get_my_inspections(
     filters: Annotated[CustomerInspectionFilterParams, Query()],
-    service: Annotated[
-        VehicleInspectionService, Depends(get_vehicle_inspection_service)
-    ],
+    service: Annotated[VehicleInspectionService, Depends(get_vehicle_inspection_service)],
     current_user=Security(get_current_user, scopes=["inspection:read_own"]),
 ):
     """
     Retrieve a paginated list of vehicle inspections for the logged-in customer's vehicles.
     """
-    return await service.get_customer_inspections(
-        filters=filters, current_user=current_user
-    )
+    return await service.get_customer_inspections(filters=filters, current_user=current_user)
 
 
 @router.get(
@@ -72,12 +69,11 @@ async def get_my_inspections(
     response_model=AdminInspectionDetailResponse,
     status_code=status.HTTP_200_OK,
     summary="Get full inspection details by ID",
+    description="Retrieve complete details of a vehicle inspection including vehicle, consultant, and uploaded documents.",
 )
 async def get_inspection_by_id(
     inspection_id: int,
-    service: Annotated[
-        VehicleInspectionService, Depends(get_vehicle_inspection_service)
-    ],
+    service: Annotated[VehicleInspectionService, Depends(get_vehicle_inspection_service)],
     current_user=Security(get_current_user, scopes=["inspection:read_own"]),
 ):
     """
@@ -94,12 +90,11 @@ async def get_inspection_by_id(
     response_model=VehicleInspectionClaim,
     status_code=status.HTTP_200_OK,
     summary="Claim a pending vehicle inspection",
+    description="Allows an authenticated consultant to claim an unassigned pending vehicle inspection.",
 )
 async def claim_vehicle_inspection(
     inspection_id: int,
-    service: Annotated[
-        VehicleInspectionService, Depends(get_vehicle_inspection_service)
-    ],
+    service: Annotated[VehicleInspectionService, Depends(get_vehicle_inspection_service)],
     current_user=Security(get_current_user, scopes=["inspection:claim"]),
 ):
     """Consultant claims an unassigned pending vehicle inspection."""
@@ -114,12 +109,11 @@ async def claim_vehicle_inspection(
     response_model=InspectionUnclaimResponse,
     status_code=status.HTTP_200_OK,
     summary="Unclaim a vehicle inspection",
+    description="Unclaim a pending vehicle inspection and return it to the unassigned pool. Consultants can only unclaim their own claimed inspections; Admins can unclaim any.",
 )
 async def unclaim_vehicle_inspection(
     inspection_id: int,
-    service: Annotated[
-        VehicleInspectionService, Depends(get_vehicle_inspection_service)
-    ],
+    service: Annotated[VehicleInspectionService, Depends(get_vehicle_inspection_service)],
     current_user=Security(get_current_user, scopes=["inspection:claim"]),
 ):
     """
@@ -137,12 +131,11 @@ async def unclaim_vehicle_inspection(
     response_model=InspectionCancelResponse,
     status_code=status.HTTP_200_OK,
     summary="Cancel a vehicle inspection",
+    description="Cancel an inspection (Admin only). Marks inspection as CANCELLED and moves the vehicle to rejected.",
 )
 async def cancel_vehicle_inspection(
     inspection_id: int,
-    service: Annotated[
-        VehicleInspectionService, Depends(get_vehicle_inspection_service)
-    ],
+    service: Annotated[VehicleInspectionService, Depends(get_vehicle_inspection_service)],
     current_user=Security(get_current_user, scopes=["inspection:update"]),
 ):
     """
@@ -160,13 +153,12 @@ async def cancel_vehicle_inspection(
     response_model=VehicleInspectionDetailResponse,
     status_code=status.HTTP_200_OK,
     summary="Submit or update vehicle inspection report",
+    description="Submit initial completed inspection report or update existing report details. Auto-syncs listed_price if vehicle is approved.",
 )
 async def submit_or_update_inspection(
     inspection_id: int,
     report_data: VehicleInspectionDetailSubmission,
-    service: Annotated[
-        VehicleInspectionService, Depends(get_vehicle_inspection_service)
-    ],
+    service: Annotated[VehicleInspectionService, Depends(get_vehicle_inspection_service)],
     current_user=Security(get_current_user, scopes=["inspection:update"]),
 ):
     """

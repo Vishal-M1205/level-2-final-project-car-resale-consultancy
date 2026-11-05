@@ -51,7 +51,6 @@ class VehicleDocumentService:
         saved_path: str | None = None
         try:
             async with self.session.begin():
-
                 vehicle = await self.vehicle_repository.get_vehicle_by_id(vehicle_id)
                 if not vehicle:
                     raise NotFoundException("Vehicle not found.")
@@ -69,13 +68,14 @@ class VehicleDocumentService:
 
                 saved_path = await save_vehicle_document_file(file, vehicle_id)
 
-                document, old_document_url = (
-                    await self.vehicle_document_repository.upsert_vehicle_document(
-                        vehicle_id=vehicle_id,
-                        document_type=doc_type,
-                        original_filename=file.filename or f"{doc_type}.pdf",
-                        document_url=saved_path,
-                    )
+                (
+                    document,
+                    old_document_url,
+                ) = await self.vehicle_document_repository.upsert_vehicle_document(
+                    vehicle_id=vehicle_id,
+                    document_type=doc_type,
+                    original_filename=file.filename or f"{doc_type}.pdf",
+                    document_url=saved_path,
                 )
 
             # Clean up the previous physical file if this was an update/replacement
@@ -106,9 +106,7 @@ class VehicleDocumentService:
                     "You do not have permission to view documents for this vehicle."
                 )
 
-            return await self.vehicle_document_repository.get_documents_by_vehicle_id(
-                vehicle_id
-            )
+            return await self.vehicle_document_repository.get_documents_by_vehicle_id(vehicle_id)
 
     async def delete_vehicle_document(
         self,
@@ -138,9 +136,7 @@ class VehicleDocumentService:
                     f"Cannot delete document. Documents can only be deleted when vehicle status is 'submitted' (current status: '{vehicle.status}')."
                 )
 
-            doc = await self.vehicle_document_repository.get_document_by_type(
-                vehicle_id, doc_type
-            )
+            doc = await self.vehicle_document_repository.get_document_by_type(vehicle_id, doc_type)
             if not doc:
                 raise NotFoundException(
                     f"Document of type '{doc_type}' not found for this vehicle."

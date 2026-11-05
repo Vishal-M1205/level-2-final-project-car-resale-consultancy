@@ -1,6 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
+
 from sqlalchemy import (
     CheckConstraint,
     DateTime,
@@ -33,9 +34,7 @@ class Vehicle(Base):
         ),
         CheckConstraint("expected_price > 0", name="vehicle_expected_price_check"),
         CheckConstraint("kilometers_driven >= 0", name="vehicle_km_check"),
-        CheckConstraint(
-            "manufacturing_year >= 1900", name="vehicle_manufacturing_year_check"
-        ),
+        CheckConstraint("manufacturing_year >= 1900", name="vehicle_manufacturing_year_check"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)

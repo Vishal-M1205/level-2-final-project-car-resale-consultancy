@@ -1,4 +1,5 @@
 from typing import Annotated
+
 from fastapi import APIRouter, Depends, Query, Security, status
 
 from app.api.dependencies.dependencies import (
@@ -21,6 +22,7 @@ router = APIRouter(prefix="/api/listings", tags=["Vehicle Listings"])
     response_model=PaginatedListingsResponse,
     status_code=status.HTTP_200_OK,
     summary="Browse vehicle listings (active, sold, price filters)",
+    description="Retrieve paginated vehicle listings. Supports filtering by status (ACTIVE, SOLD, INACTIVE), price range, and vehicle brand.",
 )
 async def get_listings(
     filters: Annotated[ListingFilterParams, Query()],
@@ -39,6 +41,7 @@ async def get_listings(
     response_model=ListingResponse,
     status_code=status.HTTP_200_OK,
     summary="Get detailed view of a vehicle listing",
+    description="Get detailed information about a vehicle listing, including vehicle specifications.",
 )
 async def get_listing(
     listing_id: int,
@@ -56,6 +59,7 @@ async def get_listing(
     response_model=ListingResponse,
     status_code=status.HTTP_200_OK,
     summary="Update listing status or price (Admin only)",
+    description="Update listing status (ACTIVE or INACTIVE) or adjust listed price and description. Restricted to Admin.",
 )
 async def patch_listing(
     listing_id: int,
@@ -73,4 +77,3 @@ async def patch_listing(
         patch_data=patch_data,
         user=current_user,
     )
-

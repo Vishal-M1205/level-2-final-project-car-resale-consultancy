@@ -41,9 +41,7 @@ class VehicleInspectionService:
         self.email_service = email_service
         self.vehicle_listing_repository = vehicle_listing_repository
 
-    def _claim_success_payload(
-        self, consultant: User, inspection_id: int, vehicle_id: int
-    ) -> dict:
+    def _claim_success_payload(self, consultant: User, inspection_id: int, vehicle_id: int) -> dict:
         return {
             "Messages": [
                 {
@@ -74,15 +72,11 @@ class VehicleInspectionService:
             ]
         }
 
-    async def claim_vehicle_inspection(
-        self, inspection_id: int, consultant: User
-    ) -> dict:
+    async def claim_vehicle_inspection(self, inspection_id: int, consultant: User) -> dict:
 
         async with self.session.begin():
-            existing_inspection = (
-                await self.vehicle_inspection_repository.get_inspection_by_id(
-                    inspection_id
-                )
+            existing_inspection = await self.vehicle_inspection_repository.get_inspection_by_id(
+                inspection_id
             )
 
             if not existing_inspection:
@@ -92,9 +86,7 @@ class VehicleInspectionService:
                 raise ConflictException("You have already claimed this inspection")
 
             if existing_inspection.consultant_id is not None:
-                raise ConflictException(
-                    "Inspection is already claimed by another consultant"
-                )
+                raise ConflictException("Inspection is already claimed by another consultant")
 
             if existing_inspection.status != "PENDING":
                 raise ConflictException("Inspection is not in pending status")
@@ -103,14 +95,10 @@ class VehicleInspectionService:
                 existing_inspection.vehicle_id
             )
             if vehicle and vehicle.status == "deactivated":
-                raise BadRequestException(
-                    "Cannot claim inspection for a deactivated vehicle"
-                )
+                raise BadRequestException("Cannot claim inspection for a deactivated vehicle")
 
-            claimed_inspection = (
-                await self.vehicle_inspection_repository.claim_inspection(
-                    inspection_id=inspection_id, consultant_id=consultant.id
-                )
+            claimed_inspection = await self.vehicle_inspection_repository.claim_inspection(
+                inspection_id=inspection_id, consultant_id=consultant.id
             )
 
             if not claimed_inspection:
@@ -137,9 +125,7 @@ class VehicleInspectionService:
             "vehicle_id": vehicle_id,
         }
 
-    async def unclaim_vehicle_inspection(
-        self, inspection_id: int, user: User
-    ) -> dict:
+    async def unclaim_vehicle_inspection(self, inspection_id: int, user: User) -> dict:
         """
         Unclaim an inspection.
         Consultant can unclaim their own claimed pending inspection.
@@ -147,10 +133,8 @@ class VehicleInspectionService:
         Resets consultant_id to None and returns task to the pending pool.
         """
         async with self.session.begin():
-            existing_inspection = (
-                await self.vehicle_inspection_repository.get_inspection_by_id(
-                    inspection_id
-                )
+            existing_inspection = await self.vehicle_inspection_repository.get_inspection_by_id(
+                inspection_id
             )
             if not existing_inspection:
                 raise NotFoundException("Inspection not found")
@@ -159,9 +143,7 @@ class VehicleInspectionService:
                 raise BadRequestException("Inspection is not currently claimed")
 
             if user.role != "ADMIN" and existing_inspection.consultant_id != user.id:
-                raise ForbiddenException(
-                    "You can only unclaim an inspection claimed by you"
-                )
+                raise ForbiddenException("You can only unclaim an inspection claimed by you")
 
             if existing_inspection.status == "COMPLETED":
                 raise BadRequestException(
@@ -180,9 +162,7 @@ class VehicleInspectionService:
                 "message": "Inspection successfully unclaimed and returned to pending pool",
             }
 
-    async def cancel_vehicle_inspection(
-        self, inspection_id: int, user: User
-    ) -> dict:
+    async def cancel_vehicle_inspection(self, inspection_id: int, user: User) -> dict:
         """
         Cancel an inspection.
         Admin only.
@@ -192,10 +172,8 @@ class VehicleInspectionService:
             raise ForbiddenException("Only Admins are authorized to cancel an inspection")
 
         async with self.session.begin():
-            existing_inspection = (
-                await self.vehicle_inspection_repository.get_inspection_by_id(
-                    inspection_id
-                )
+            existing_inspection = await self.vehicle_inspection_repository.get_inspection_by_id(
+                inspection_id
             )
             if not existing_inspection:
                 raise NotFoundException("Inspection not found")
@@ -217,9 +195,7 @@ class VehicleInspectionService:
                 )
 
             if vehicle.status == "deactivated":
-                raise BadRequestException(
-                    "Cannot cancel inspection for a deactivated vehicle"
-                )
+                raise BadRequestException("Cannot cancel inspection for a deactivated vehicle")
 
             await self.vehicle_inspection_repository.cancel_inspection(inspection_id)
             await self.vehicle_repository.update_vehicle_status(vehicle.id, "rejected")
@@ -266,14 +242,10 @@ class VehicleInspectionService:
                 filters=filters, seller_id=current_user.id
             )
 
-    async def get_inspection_with_details(
-        self, inspection_id: int, current_user: User
-    ) -> dict:
+    async def get_inspection_with_details(self, inspection_id: int, current_user: User) -> dict:
         async with self.session.begin():
-            inspection = (
-                await self.vehicle_inspection_repository.get_inspection_with_details(
-                    inspection_id
-                )
+            inspection = await self.vehicle_inspection_repository.get_inspection_with_details(
+                inspection_id
             )
 
             if not inspection:
@@ -296,9 +268,7 @@ class VehicleInspectionService:
                         "You are not authorized to view an inspection assigned to another consultant"
                     )
 
-            inspection.documents = (
-                inspection.vehicle.documents if inspection.vehicle else []
-            )
+            inspection.documents = inspection.vehicle.documents if inspection.vehicle else []
             return inspection
 
     async def replace_vehicle_inspection(
@@ -313,22 +283,16 @@ class VehicleInspectionService:
         - If COMPLETED: replaces/updates existing report details.
         """
         async with self.session.begin():
-            inspection = (
-                await self.vehicle_inspection_repository.get_inspection_by_id(
-                    inspection_id
-                )
+            inspection = await self.vehicle_inspection_repository.get_inspection_by_id(
+                inspection_id
             )
             if not inspection:
                 raise NotFoundException("Inspection not found")
 
             if inspection.status == "CANCELLED":
-                raise BadRequestException(
-                    "Cannot submit or update a cancelled inspection report."
-                )
+                raise BadRequestException("Cannot submit or update a cancelled inspection report.")
 
-            vehicle = await self.vehicle_repository.get_vehicle_by_id(
-                inspection.vehicle_id
-            )
+            vehicle = await self.vehicle_repository.get_vehicle_by_id(inspection.vehicle_id)
             if not vehicle:
                 raise NotFoundException("Associated vehicle not found")
 
@@ -362,11 +326,9 @@ class VehicleInspectionService:
                         "Only administrators can modify an inspection report after the vehicle decision has been made."
                     )
 
-            updated_inspection = (
-                await self.vehicle_inspection_repository.update_inspection_details(
-                    inspection_id=inspection_id,
-                    report_data=report_data,
-                )
+            updated_inspection = await self.vehicle_inspection_repository.update_inspection_details(
+                inspection_id=inspection_id,
+                report_data=report_data,
             )
 
             # sync listed_price in active listing if vehicle is approved

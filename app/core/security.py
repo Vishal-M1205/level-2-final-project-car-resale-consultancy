@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from typing import Optional
+
 import jwt
 from pwdlib import PasswordHash
 
@@ -48,9 +49,7 @@ def create_access_token(token_payload: dict, expiration_minutes: Optional[int] =
 
 def create_refresh_token(token_payload):
     encode_data = token_payload.copy()
-    expiration_day = datetime.now(timezone.utc) + timedelta(
-        days=config.jwt_refresh_expiration_days
-    )
+    expiration_day = datetime.now(timezone.utc) + timedelta(days=config.jwt_refresh_expiration_days)
     encode_data.update({"exp": expiration_day, "type": "refresh"})
 
     return jwt.encode(
@@ -60,9 +59,7 @@ def create_refresh_token(token_payload):
 
 def decode_access_token(token: str):
     try:
-        return jwt.decode(
-            jwt=token, key=config.jwt_secret_key, algorithms=[config.jwt_algorithm]
-        )
+        return jwt.decode(jwt=token, key=config.jwt_secret_key, algorithms=[config.jwt_algorithm])
     except jwt.InvalidSignatureError as e:
         raise SignatureError("Invalid token signature") from e
     except jwt.ExpiredSignatureError as e:

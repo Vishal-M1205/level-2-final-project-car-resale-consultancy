@@ -1,5 +1,6 @@
 import math
 from decimal import Decimal
+
 from sqlalchemy import and_, func, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -77,9 +78,7 @@ class VehicleListingRepository(VehicleListingInterface):
             .where(and_(*conditions))
         )
         total_listings = (await self.session.execute(count_stmnt)).scalar_one() or 0
-        total_pages = (
-            math.ceil(total_listings / filters.limit) if total_listings > 0 else 0
-        )
+        total_pages = math.ceil(total_listings / filters.limit) if total_listings > 0 else 0
 
         return {
             "listings": listings,
@@ -132,9 +131,7 @@ class VehicleListingRepository(VehicleListingInterface):
             await self.session.execute(update_stmnt)
         return listing_ids
 
-    async def get_listing_by_vehicle_id(
-        self, vehicle_id: int
-    ) -> VehicleListing | None:
+    async def get_listing_by_vehicle_id(self, vehicle_id: int) -> VehicleListing | None:
         stmnt = select(VehicleListing).where(VehicleListing.vehicle_id == vehicle_id)
         result = await self.session.execute(stmnt)
         return result.scalar_one_or_none()
@@ -192,4 +189,3 @@ class VehicleListingRepository(VehicleListingInterface):
         )
         result = await self.session.execute(stmnt)
         return result.scalar_one_or_none()
-

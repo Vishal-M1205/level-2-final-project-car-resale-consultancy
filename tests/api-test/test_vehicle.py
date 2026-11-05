@@ -48,9 +48,7 @@ def test_submit_vehicle_duplicate_registration_number(client, customer_headers):
     assert "already found" in res2.json()["detail"].lower()
 
 
-def test_get_vehicles_customer_scoped_to_own(
-    client, customer_user, buyer_user, customer_headers
-):
+def test_get_vehicles_customer_scoped_to_own(client, customer_user, buyer_user, customer_headers):
     v1 = create_db_vehicle(seller_id=customer_user["id"], registration_number="TN01AA1111")
     create_db_vehicle(seller_id=buyer_user["id"], registration_number="TN01BB2222")
 
@@ -101,6 +99,7 @@ def test_update_approved_vehicle_rejected(client, customer_user, customer_header
 
 def test_vehicle_decision_approve_creates_listing(client, customer_user, admin_headers):
     import psycopg
+
     from tests.conftest import config
 
     v = create_db_vehicle(seller_id=customer_user["id"], status="submitted")
@@ -123,7 +122,12 @@ def test_vehicle_decision_approve_creates_listing(client, customer_user, admin_h
             for doc_type in ["RC", "INSURANCE", "PUC"]:
                 cur.execute(
                     "INSERT INTO vehicle_documents (vehicle_id, document_type, original_filename, document_url) VALUES (%s, %s, %s, %s)",
-                    (v["id"], doc_type, f"{doc_type.lower()}.pdf", f"uploads/{doc_type.lower()}.pdf"),
+                    (
+                        v["id"],
+                        doc_type,
+                        f"{doc_type.lower()}.pdf",
+                        f"uploads/{doc_type.lower()}.pdf",
+                    ),
                 )
 
     response = client.patch(
@@ -135,4 +139,3 @@ def test_vehicle_decision_approve_creates_listing(client, customer_user, admin_h
     data = response.json()
     assert data["status"] == "approved"
     assert data["listing_id"] is not None
-

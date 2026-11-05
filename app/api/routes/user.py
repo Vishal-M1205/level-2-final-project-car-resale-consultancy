@@ -1,4 +1,5 @@
 from typing import Annotated
+
 from fastapi import APIRouter, Depends, Query, Security, status
 
 from app.api.dependencies.dependencies import get_current_user, get_user_service
@@ -19,6 +20,7 @@ router = APIRouter(prefix="/api/users", tags=["Users"])
     response_model=PaginatedUsersResponse,
     status_code=status.HTTP_200_OK,
     summary="List all users (Admin only)",
+    description="Retrieve paginated users list. Supports filtering by role, active status, search keywords, location, and sorting. Restricted to Admin.",
 )
 async def list_users(
     filters: Annotated[UserFilterParams, Query()],
@@ -26,10 +28,51 @@ async def list_users(
     current_user=Security(get_current_user, scopes=["user:read"]),
 ):
     """
-    Retrieve paginated users list. Supports filtering by role and active status.
+    Retrieve paginated users list. Supports filtering by role, active status, and search keywords.
     Restricted to Admin.
     """
     return await service.get_users(filters=filters, current_user=current_user)
+
+
+@router.get(
+    "/me",
+    response_model=UserResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get current user profile",
+    description="Retrieve profile details for the currently authenticated user without needing their user ID.",
+)
+async def get_my_profile(
+    service: Annotated[UserService, Depends(get_user_service)],
+    current_user=Security(get_current_user, scopes=["user:read_own"]),
+):
+    """
+    Get current logged-in user profile details.
+    Available to any authenticated user (customer, consultant, or admin).
+    """
+    return await service.get_my_profile(current_user=current_user)
+
+
+@router.patch(
+    "/me",
+    response_model=UserResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Update current user profile",
+    description="Update profile details for the currently authenticated user without needing their user ID.",
+)
+async def patch_my_profile(
+    patch_data: UserPatchRequest,
+    service: Annotated[UserService, Depends(get_user_service)],
+    current_user=Security(get_current_user, scopes=["user:update_own"]),
+):
+    """
+    Update profile details for the current user.
+    Available to any authenticated user.
+    """
+    return await service.patch_user(
+        user_id=current_user.id,
+        patch_data=patch_data,
+        current_user=current_user,
+    )
 
 
 @router.get(
@@ -37,6 +80,7 @@ async def list_users(
     response_model=UserResponse,
     status_code=status.HTTP_200_OK,
     summary="Get user profile by ID",
+    description="Get user profile details. Users can view their own profile; Admin can view any user's profile.",
 )
 async def get_user_by_id(
     user_id: int,
@@ -55,6 +99,7 @@ async def get_user_by_id(
     response_model=UserDeleteResponse,
     status_code=status.HTTP_200_OK,
     summary="Soft delete a user and deactivate their active listings (Admin only)",
+    description="Soft delete user (sets is_active=False). Cascades deactivation to all active vehicle listings owned by the user. Restricted to Admin.",
 )
 async def soft_delete_user(
     user_id: int,
@@ -66,9 +111,7 @@ async def soft_delete_user(
     Cascades deactivation to all active vehicle listings owned by the user.
     Restricted to Admin.
     """
-    return await service.soft_delete_user(
-        user_id=user_id, current_user=current_user
-    )
+    return await service.soft_delete_user(user_id=user_id, current_user=current_user)
 
 
 @router.patch(
@@ -76,6 +119,7 @@ async def soft_delete_user(
     response_model=UserResponse,
     status_code=status.HTTP_200_OK,
     summary="Update user profile (Users can update their own profile)",
+    description="Update profile details (name, phone, address, age, gender, pincode). Users can update their own profile; Admin can update any user's profile.",
 )
 async def patch_user(
     user_id: int,
@@ -92,4 +136,3 @@ async def patch_user(
         patch_data=patch_data,
         current_user=current_user,
     )
-

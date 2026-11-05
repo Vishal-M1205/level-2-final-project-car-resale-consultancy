@@ -74,4 +74,3 @@ class ConflictException(AppException):
 
     def __init__(self, detail: str = "Resource conflict"):
         super().__init__(detail=detail, status_code=status.HTTP_409_CONFLICT)
-

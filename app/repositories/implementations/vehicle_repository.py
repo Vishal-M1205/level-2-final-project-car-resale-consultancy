@@ -12,12 +12,8 @@ class VehicleRepository(VehicleInterface):
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def get_vehicle_by_registration_number(
-        self, registration_number: str
-    ) -> Vehicle | None:
-        stmnt = select(Vehicle).where(
-            Vehicle.registration_number == registration_number
-        )
+    async def get_vehicle_by_registration_number(self, registration_number: str) -> Vehicle | None:
+        stmnt = select(Vehicle).where(Vehicle.registration_number == registration_number)
         result = await self.session.execute(stmnt)
         return result.scalar_one_or_none()
 
@@ -26,9 +22,7 @@ class VehicleRepository(VehicleInterface):
     ) -> Vehicle:
         stmnt = (
             insert(Vehicle)
-            .values(
-                **vehicle_details.model_dump(), status="submitted", seller_id=seller_id
-            )
+            .values(**vehicle_details.model_dump(), status="submitted", seller_id=seller_id)
             .returning(Vehicle)
         )
         result = await self.session.execute(stmnt)
@@ -87,9 +81,7 @@ class VehicleRepository(VehicleInterface):
         row = await self.session.execute(count_stmnt)
         total_vehicles = row.scalar_one() or 0
 
-        total_pages = (
-            math.ceil(total_vehicles / filters.limit) if total_vehicles > 0 else 0
-        )
+        total_pages = math.ceil(total_vehicles / filters.limit) if total_vehicles > 0 else 0
 
         return {
             "vehicles": vehicles,
@@ -99,9 +91,7 @@ class VehicleRepository(VehicleInterface):
             "total_vehicles": total_vehicles,
         }
 
-    async def update_vehicle_status(
-        self, vehicle_id: int, status: str
-    ) -> Vehicle | None:
+    async def update_vehicle_status(self, vehicle_id: int, status: str) -> Vehicle | None:
         stmnt = (
             update(Vehicle)
             .where(Vehicle.id == vehicle_id)
@@ -111,9 +101,7 @@ class VehicleRepository(VehicleInterface):
         result = await self.session.execute(stmnt)
         return result.scalar_one_or_none()
 
-    async def update_vehicle_details(
-        self, vehicle_id: int, update_data: dict
-    ) -> Vehicle | None:
+    async def update_vehicle_details(self, vehicle_id: int, update_data: dict) -> Vehicle | None:
         stmnt = (
             update(Vehicle)
             .where(Vehicle.id == vehicle_id)

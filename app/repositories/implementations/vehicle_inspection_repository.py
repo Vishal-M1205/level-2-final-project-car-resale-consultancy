@@ -1,4 +1,5 @@
 import math
+
 from sqlalchemy import and_, func, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -80,9 +81,7 @@ class VehicleInspectionRepository(VehicleInspectionInterface):
         row = await self.session.execute(count_stmnt)
         total_inspections = row.scalar_one() or 0
 
-        total_pages = (
-            math.ceil(total_inspections / filters.limit) if total_inspections > 0 else 0
-        )
+        total_pages = math.ceil(total_inspections / filters.limit) if total_inspections > 0 else 0
 
         return {
             "inspections": inspections,
@@ -101,9 +100,7 @@ class VehicleInspectionRepository(VehicleInspectionInterface):
         result = await self.session.execute(stmnt)
         return result.scalar_one()
 
-    async def get_inspection_by_id(
-        self, inspection_id: int
-    ) -> VehicleInspection | None:
+    async def get_inspection_by_id(self, inspection_id: int) -> VehicleInspection | None:
         return await self.session.get(VehicleInspection, inspection_id)
 
     async def claim_inspection(
@@ -147,9 +144,7 @@ class VehicleInspectionRepository(VehicleInspectionInterface):
         result = await self.session.execute(stmnt)
         return result.scalar_one_or_none()
 
-    async def reset_inspection_for_resubmission(
-        self, vehicle_id: int
-    ) -> VehicleInspection | None:
+    async def reset_inspection_for_resubmission(self, vehicle_id: int) -> VehicleInspection | None:
         stmnt = (
             update(VehicleInspection)
             .where(VehicleInspection.vehicle_id == vehicle_id)
@@ -195,9 +190,7 @@ class VehicleInspectionRepository(VehicleInspectionInterface):
         await self.session.refresh(updated_inspection, ["vehicle"])
         return updated_inspection
 
-    async def get_inspection_by_vehicle_id(
-        self, vehicle_id: int
-    ) -> VehicleInspection | None:
+    async def get_inspection_by_vehicle_id(self, vehicle_id: int) -> VehicleInspection | None:
         stmnt = (
             select(VehicleInspection)
             .where(VehicleInspection.vehicle_id == vehicle_id)
@@ -206,9 +199,7 @@ class VehicleInspectionRepository(VehicleInspectionInterface):
         result = await self.session.execute(stmnt)
         return result.scalar_one_or_none()
 
-    async def get_inspection_with_details(
-        self, inspection_id: int
-    ) -> VehicleInspection | None:
+    async def get_inspection_with_details(self, inspection_id: int) -> VehicleInspection | None:
         stmnt = (
             select(VehicleInspection)
             .where(VehicleInspection.id == inspection_id)

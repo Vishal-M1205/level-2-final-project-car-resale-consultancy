@@ -1,53 +1,54 @@
 from typing import Annotated
-from fastapi import Depends, HTTPException, Request, status
+
+from fastapi import Depends, Request
 from fastapi.security import OAuth2PasswordBearer, SecurityScopes
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.core.security import decode_access_token
 from app.database.database import get_db_connection
-from app.repositories.implementations.user_repository import UserRepository
-from app.repositories.interfaces.user_interface import UserInterface
-from app.repositories.implementations.vehicle_repository import VehicleRepository
-from app.repositories.interfaces.vehicle_interface import VehicleInterface
-from app.repositories.implementations.vehicle_inspection_repository import (
-    VehicleInspectionRepository,
-)
-from app.repositories.interfaces.vehicle_inspection_interface import (
-    VehicleInspectionInterface,
-)
-from app.repositories.implementations.vehicle_document_repository import (
-    VehicleDocumentRepository,
-)
-from app.repositories.interfaces.vehicle_document_interface import (
-    VehicleDocumentInterface,
-)
-from app.repositories.implementations.vehicle_listing_repository import (
-    VehicleListingRepository,
-)
-from app.repositories.interfaces.vehicle_listing_interface import (
-    VehicleListingInterface,
-)
-from app.repositories.implementations.resale_transaction_repository import (
-    ResaleTransactionRepository,
-)
-from app.repositories.interfaces.resale_transaction_interface import (
-    ResaleTransactionInterface,
-)
 from app.exceptions import (
     ForbiddenException,
     SignatureError,
     TokenExpiredException,
     UnauthorizedException,
 )
+from app.repositories.implementations.resale_transaction_repository import (
+    ResaleTransactionRepository,
+)
+from app.repositories.implementations.user_repository import UserRepository
+from app.repositories.implementations.vehicle_document_repository import (
+    VehicleDocumentRepository,
+)
+from app.repositories.implementations.vehicle_inspection_repository import (
+    VehicleInspectionRepository,
+)
+from app.repositories.implementations.vehicle_listing_repository import (
+    VehicleListingRepository,
+)
+from app.repositories.implementations.vehicle_repository import VehicleRepository
+from app.repositories.interfaces.resale_transaction_interface import (
+    ResaleTransactionInterface,
+)
+from app.repositories.interfaces.user_interface import UserInterface
+from app.repositories.interfaces.vehicle_document_interface import (
+    VehicleDocumentInterface,
+)
+from app.repositories.interfaces.vehicle_inspection_interface import (
+    VehicleInspectionInterface,
+)
+from app.repositories.interfaces.vehicle_interface import VehicleInterface
+from app.repositories.interfaces.vehicle_listing_interface import (
+    VehicleListingInterface,
+)
 from app.schemas.auth import TokenData
 from app.services.auth_service import AuthService
 from app.services.email_service import EmailService
-from app.services.vehicle_inspection_service import VehicleInspectionService
-from app.services.vehicle_service import VehicleService
-from app.services.vehicle_document_service import VehicleDocumentService
-from app.services.vehicle_listing_service import VehicleListingService
 from app.services.resale_transaction_service import ResaleTransactionService
 from app.services.user_service import UserService
-import jwt
+from app.services.vehicle_document_service import VehicleDocumentService
+from app.services.vehicle_inspection_service import VehicleInspectionService
+from app.services.vehicle_listing_service import VehicleListingService
+from app.services.vehicle_service import VehicleService
 
 DB_Session = Annotated[AsyncSession, Depends(get_db_connection)]
 
@@ -154,9 +155,7 @@ def get_vehicle_document_service(
         VehicleDocumentInterface, Depends(get_vehicle_document_repository)
     ],
 ) -> VehicleDocumentService:
-    return VehicleDocumentService(
-        session, vehicle_repository, vehicle_document_repository
-    )
+    return VehicleDocumentService(session, vehicle_repository, vehicle_document_repository)
 
 
 def get_vehicle_listing_service(
@@ -166,9 +165,7 @@ def get_vehicle_listing_service(
     ],
     vehicle_repository: Annotated[VehicleInterface, Depends(get_vehicle_repository)],
 ) -> VehicleListingService:
-    return VehicleListingService(
-        session, vehicle_listing_repository, vehicle_repository
-    )
+    return VehicleListingService(session, vehicle_listing_repository, vehicle_repository)
 
 
 def get_resale_transaction_service(
@@ -228,6 +225,9 @@ async def get_current_user(
 
         if not user:
             raise credentials_exception
+
+        if not user.is_active:
+            raise ForbiddenException("User account has been deactivated.")
 
         for required_scopes in security_scopes.scopes:
             if required_scopes not in token_data.scopes:

@@ -1,6 +1,7 @@
+import math
 from datetime import datetime, timezone
 from decimal import Decimal
-import math
+
 from sqlalchemy import and_, func, insert, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -96,17 +97,9 @@ class ResaleTransactionRepository(ResaleTransactionInterface):
         rows = await self.session.execute(stmnt)
         transactions = list(rows.scalars().all())
 
-        count_stmnt = (
-            select(func.count())
-            .select_from(ResaleTransaction)
-            .where(where_clause)
-        )
+        count_stmnt = select(func.count()).select_from(ResaleTransaction).where(where_clause)
         total_transactions = (await self.session.execute(count_stmnt)).scalar_one() or 0
-        total_pages = (
-            math.ceil(total_transactions / filters.limit)
-            if total_transactions > 0
-            else 0
-        )
+        total_pages = math.ceil(total_transactions / filters.limit) if total_transactions > 0 else 0
 
         return {
             "transactions": transactions,
@@ -116,9 +109,7 @@ class ResaleTransactionRepository(ResaleTransactionInterface):
             "total_transactions": total_transactions,
         }
 
-    async def get_transaction_by_id(
-        self, transaction_id: int
-    ) -> ResaleTransaction | None:
+    async def get_transaction_by_id(self, transaction_id: int) -> ResaleTransaction | None:
         stmnt = (
             select(ResaleTransaction)
             .options(
@@ -138,9 +129,7 @@ class ResaleTransactionRepository(ResaleTransactionInterface):
         if "delivery_date" in update_data and update_data["delivery_date"] is not None:
             val = update_data["delivery_date"]
             if getattr(val, "tzinfo", None) is not None:
-                update_data["delivery_date"] = val.astimezone(timezone.utc).replace(
-                    tzinfo=None
-                )
+                update_data["delivery_date"] = val.astimezone(timezone.utc).replace(tzinfo=None)
 
         update_data["updated_at"] = func.now()
         stmnt = (
@@ -152,10 +141,7 @@ class ResaleTransactionRepository(ResaleTransactionInterface):
         result = await self.session.execute(stmnt)
         tx = result.scalar_one_or_none()
         if tx:
-            await self.session.refresh(
-                tx, ["buyer", "seller", "consultant", "listing"]
-            )
+            await self.session.refresh(tx, ["buyer", "seller", "consultant", "listing"])
             if tx.listing:
                 await self.session.refresh(tx.listing, ["vehicle"])
         return tx
-

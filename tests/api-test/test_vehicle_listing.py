@@ -80,4 +80,3 @@ def test_patch_listing_reject_manual_sold(client, admin_headers, customer_user):
     )
     assert response.status_code == 422
     assert "cannot manually set status to 'sold'" in response.text.lower()
-

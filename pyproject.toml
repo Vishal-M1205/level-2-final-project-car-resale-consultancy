@@ -1,0 +1,47 @@
+[tool.ruff]
+# Target Python version matching your project
+target-version = "py312"
+
+# Generous line length to avoid awkward code wrapping
+line-length = 100
+
+# Exclude directories that shouldn't be touched or reformatted
+exclude = [
+    ".git",
+    ".venv",
+    "venv",
+    "migration",   # Keep Alembic migrations untouched
+    "scratch",     # Scratch / temporary scripts
+    "uploads",
+    "__pycache__",
+]
+
+[tool.ruff.lint]
+# Conservative rule set:
+# E = pycodestyle errors
+# W = pycodestyle warnings
+# F = Pyflakes (real bugs, undefined names, syntax issues)
+# I = isort (clean, organized imports)
+select = ["E", "W", "F", "I"]
+
+# Rules to explicitly ignore so they don't cause disruptions
+ignore = [
+    "E501",  # Line too long (formatter handles this cleanly; don't flag as error)
+    "B008",  # Do not perform function call in argument defaults (essential for FastAPI Depends/Query)
+]
+
+# Allow unused variables if prefixed with an underscore (e.g., _conn, _request)
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[tool.ruff.lint.isort]
+# Groups first-party imports cleanly under 'app'
+known-first-party = ["app"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

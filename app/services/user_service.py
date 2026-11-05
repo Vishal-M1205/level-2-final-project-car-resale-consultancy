@@ -35,13 +35,23 @@ class UserService:
                 limit=filters.limit,
                 role=filters.role,
                 is_active=filters.is_active,
+                search=filters.search,
+                name=filters.name,
+                email=filters.email,
+                phone=filters.phone,
+                district=filters.district,
+                state=filters.state,
+                gender=filters.gender,
+                sort_by=filters.sort_by,
+                order=filters.order,
             )
+
+    async def get_my_profile(self, current_user: User) -> User:
+        return await self.get_user_by_id(user_id=current_user.id, current_user=current_user)
 
     async def get_user_by_id(self, user_id: int, current_user: User) -> User:
         if current_user.role != "ADMIN" and current_user.id != user_id:
-            raise ForbiddenException(
-                "You do not have permission to view other users' profiles."
-            )
+            raise ForbiddenException("You do not have permission to view other users' profiles.")
 
         async with self.session.begin():
             user = await self.user_repository.get_user_by_id(user_id)
@@ -54,9 +64,7 @@ class UserService:
             raise ForbiddenException("Only administrators can deactivate users.")
 
         if current_user.id == user_id:
-            raise BadRequestException(
-                "Administrators cannot deactivate their own account."
-            )
+            raise BadRequestException("Administrators cannot deactivate their own account.")
 
         async with self.session.begin():
             target_user = await self.user_repository.get_user_by_id(user_id)
@@ -99,13 +107,9 @@ class UserService:
                 raise NotFoundException("User not found or is inactive.")
 
             if "phone" in update_dict and update_dict["phone"] != existing_user.phone:
-                phone_user = await self.user_repository.get_user_by_phone(
-                    update_dict["phone"]
-                )
+                phone_user = await self.user_repository.get_user_by_phone(update_dict["phone"])
                 if phone_user and phone_user.id != user_id:
-                    raise ConflictException(
-                        "Phone number is already registered by another user."
-                    )
+                    raise ConflictException("Phone number is already registered by another user.")
 
             updated_user = await self.user_repository.update_user(
                 user_id=user_id, update_data=update_dict

@@ -5,11 +5,8 @@ from app.schemas.vehicle import VehicleFilterParams, VehicleSubmission
 
 
 class VehicleInterface(ABC):
-
     @abstractmethod
-    async def get_vehicle_by_registration_number(
-        self, registration_number: str
-    ) -> Vehicle | None:
+    async def get_vehicle_by_registration_number(self, registration_number: str) -> Vehicle | None:
         pass
 
     @abstractmethod
@@ -29,16 +26,12 @@ class VehicleInterface(ABC):
         pass
 
     @abstractmethod
-    async def update_vehicle_status(
-        self, vehicle_id: int, status: str
-    ) -> Vehicle | None:
+    async def update_vehicle_status(self, vehicle_id: int, status: str) -> Vehicle | None:
 
         pass
 
     @abstractmethod
-    async def update_vehicle_details(
-        self, vehicle_id: int, update_data: dict
-    ) -> Vehicle | None:
+    async def update_vehicle_details(self, vehicle_id: int, update_data: dict) -> Vehicle | None:
         pass
 
     @abstractmethod

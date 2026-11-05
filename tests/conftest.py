@@ -1,6 +1,8 @@
 import os
 import sys
+from contextlib import asynccontextmanager
 from decimal import Decimal
+
 import psycopg
 import pytest
 from fastapi.testclient import TestClient
@@ -39,12 +41,11 @@ def _truncate_db():
             )
 
 
-from contextlib import asynccontextmanager
-
 @asynccontextmanager
 async def dummy_lifespan(app):
     app.state.client = None
     yield
+
 
 app.router.lifespan_context = dummy_lifespan
 
@@ -61,9 +62,7 @@ def mock_mailjet(monkeypatch):
     async def fake_send_mail(self, payload):
         return None
 
-    monkeypatch.setattr(
-        "app.services.email_service.EmailService.send_mail", fake_send_mail
-    )
+    monkeypatch.setattr("app.services.email_service.EmailService.send_mail", fake_send_mail)
 
 
 @pytest.fixture
@@ -86,6 +85,8 @@ def create_db_user(
     phone: str = "9876543210",
     role: str = "CUSTOMER",
     is_active: bool = True,
+    district: str = "Coimbatore",
+    state: str = "Tamil Nadu",
 ) -> dict:
     pwd_hash = hash_password(password)
     with psycopg.connect(
@@ -111,8 +112,8 @@ def create_db_user(
                     25,
                     "MALE",
                     "123 Main St",
-                    "Coimbatore",
-                    "Tamil Nadu",
+                    district,
+                    state,
                     "641001",
                     role,
                     is_active,
@@ -126,6 +127,8 @@ def create_db_user(
                 "phone": row[3],
                 "role": row[4],
                 "is_active": row[5],
+                "district": district,
+                "state": state,
             }
 
 
@@ -388,4 +391,3 @@ def buyer_headers(buyer_token):
 def create_auth_headers(email: str, role: str) -> dict:
     token = create_access_token({"sub": email, "role": role})
     return {"Authorization": f"Bearer {token}"}
-

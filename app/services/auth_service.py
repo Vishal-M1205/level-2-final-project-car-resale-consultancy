@@ -57,15 +57,11 @@ class AuthService:
 
     async def _register(self, user_data: RegisterUser, role: str) -> User:
         async with self.session.begin():
-            existing_user = await self.user_repository.get_user_by_email(
-                user_data.email
-            )
+            existing_user = await self.user_repository.get_user_by_email(user_data.email)
             if existing_user:
                 raise ConflictException("User already exists with this email")
 
-            existing_user = await self.user_repository.get_user_by_phone(
-                user_data.phone
-            )
+            existing_user = await self.user_repository.get_user_by_phone(user_data.phone)
             if existing_user:
                 raise ConflictException("User already exists with this phone number")
 

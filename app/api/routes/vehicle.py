@@ -1,4 +1,5 @@
 from typing import Annotated
+
 from fastapi import APIRouter, Depends, File, Form, Query, Security, UploadFile, status
 
 from app.api.dependencies.dependencies import (
@@ -31,6 +32,7 @@ router = APIRouter(prefix="/api/vehicles", tags=["Vehicles"])
     response_model=VehicleResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Submit vehicle details for resale",
+    description="Submit a new vehicle for resale. The authenticated user becomes the seller. Automatically creates a pending inspection record in the same transaction.",
 )
 async def submit_vehicle(
     vehicle_details: VehicleSubmission,
@@ -53,6 +55,7 @@ async def submit_vehicle(
     response_model=VehicleListResponse,
     status_code=status.HTTP_200_OK,
     summary="Get vehicles with filters and pagination",
+    description="Retrieve a paginated list of vehicles with optional filters. Customers view their own submitted vehicles; Consultants and Admins view all vehicles.",
 )
 async def get_all_vehicles(
     filters: Annotated[VehicleFilterParams, Query()],
@@ -72,6 +75,7 @@ async def get_all_vehicles(
     response_model=VehicleResponse,
     status_code=status.HTTP_200_OK,
     summary="Get vehicle details by ID",
+    description="Retrieve details of a vehicle by its ID. Sellers can view their own vehicle; Consultants and Admins can view any.",
 )
 async def get_vehicle_by_id(
     vehicle_id: int,
@@ -90,6 +94,7 @@ async def get_vehicle_by_id(
     response_model=VehicleResponse,
     status_code=status.HTTP_200_OK,
     summary="Update vehicle details",
+    description="Update vehicle specifications, pricing, registration number, or description. Sellers can edit their own vehicles while status is submitted; Admins can edit at any status.",
 )
 async def update_vehicle_details(
     vehicle_id: int,
@@ -114,15 +119,12 @@ async def update_vehicle_details(
     response_model=VehicleDocumentResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Upload or update a document for a vehicle",
+    description="Upload document (RC, INSURANCE, PUC) for a submitted vehicle. Overwrites previous file if same type was uploaded.",
 )
 async def upload_vehicle_document(
     vehicle_id: int,
-    file: Annotated[
-        UploadFile, File(description="Vehicle document in PDF format (max 5MB)")
-    ],
-    document_type: Annotated[
-        str, Form(description="Document type: RC, INSURANCE, or PUC")
-    ],
+    file: Annotated[UploadFile, File(description="Vehicle document in PDF format (max 5MB)")],
+    document_type: Annotated[str, Form(description="Document type: RC, INSURANCE, or PUC")],
     service: Annotated[VehicleDocumentService, Depends(get_vehicle_document_service)],
     current_user=Security(get_current_user, scopes=["vehicle:update_own"]),
 ):
@@ -143,6 +145,7 @@ async def upload_vehicle_document(
     response_model=list[VehicleDocumentResponse],
     status_code=status.HTTP_200_OK,
     summary="Get all uploaded documents for a vehicle",
+    description="Retrieve all uploaded documents for a specific vehicle. Sellers can view documents of their own vehicles; Admins can view all.",
 )
 async def get_vehicle_documents(
     vehicle_id: int,
@@ -164,6 +167,7 @@ async def get_vehicle_documents(
     response_model=VehicleDocumentDeleteResponse,
     status_code=status.HTTP_200_OK,
     summary="Delete a vehicle document (only when vehicle is in submitted status)",
+    description="Hard delete a document uploaded for a vehicle. Permitted only when the vehicle is in submitted status.",
 )
 async def delete_vehicle_document(
     vehicle_id: int,
@@ -187,6 +191,7 @@ async def delete_vehicle_document(
     response_model=VehicleDecisionResponse,
     status_code=status.HTTP_200_OK,
     summary="Admin lifecycle decision (APPROVED, REJECTED, or RESUBMIT)",
+    description="Admin decides lifecycle status for a submitted vehicle: APPROVED verifies documents and creates listing, REJECTED deactivates listing, RESUBMIT reopens vehicle and resets inspection.",
 )
 async def admin_vehicle_decision(
     vehicle_id: int,
@@ -212,6 +217,7 @@ async def admin_vehicle_decision(
     response_model=VehicleDeleteResponse,
     status_code=status.HTTP_200_OK,
     summary="Soft delete a vehicle",
+    description="Soft delete a vehicle by marking its status as deactivated. Sellers can delete only when submitted or rejected; Admins can deactivate at any status except sold.",
 )
 async def delete_vehicle(
     vehicle_id: int,

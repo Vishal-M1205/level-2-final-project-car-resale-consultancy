@@ -1,9 +1,9 @@
 from abc import ABC, abstractmethod
+
 from app.models.vehicle_document import VehicleDocument
 
 
 class VehicleDocumentInterface(ABC):
-
     @abstractmethod
     async def get_document_by_type(
         self, vehicle_id: int, document_type: str
@@ -14,9 +14,7 @@ class VehicleDocumentInterface(ABC):
         pass
 
     @abstractmethod
-    async def get_documents_by_vehicle_id(
-        self, vehicle_id: int
-    ) -> list[VehicleDocument]:
+    async def get_documents_by_vehicle_id(self, vehicle_id: int) -> list[VehicleDocument]:
         """
         Retrieve all documents associated with a specific vehicle.
         """
@@ -38,9 +36,7 @@ class VehicleDocumentInterface(ABC):
         pass
 
     @abstractmethod
-    async def delete_document(
-        self, vehicle_id: int, document_type: str
-    ) -> bool:
+    async def delete_document(self, vehicle_id: int, document_type: str) -> bool:
         """
         Hard delete a vehicle document by vehicle ID and document type.
         Returns True if deleted, False if not found.

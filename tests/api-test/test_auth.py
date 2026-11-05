@@ -59,9 +59,7 @@ def test_register_invalid_password(client):
 
 
 def test_login_success(client):
-    create_db_user(
-        email="login_user@example.com", password="Password@123", phone="9876543223"
-    )
+    create_db_user(email="login_user@example.com", password="Password@123", phone="9876543223")
     response = client.post(
         "/api/auth/login",
         data={"username": "login_user@example.com", "password": "Password@123"},
@@ -74,9 +72,7 @@ def test_login_success(client):
 
 
 def test_login_wrong_password(client):
-    create_db_user(
-        email="login_fail@example.com", password="Password@123", phone="9876543224"
-    )
+    create_db_user(email="login_fail@example.com", password="Password@123", phone="9876543224")
     response = client.post(
         "/api/auth/login",
         data={"username": "login_fail@example.com", "password": "WrongPassword@999"},
@@ -103,9 +99,7 @@ def test_login_deactivated_user(client):
 def test_refresh_token_success(client):
     create_db_user(email="refresh@example.com", phone="9876543226")
     refresh_token = create_refresh_token({"sub": "refresh@example.com"})
-    response = client.post(
-        "/api/auth/refresh", json={"refresh_token": refresh_token}
-    )
+    response = client.post("/api/auth/refresh", json={"refresh_token": refresh_token})
     assert response.status_code == 200
     data = response.json()
     assert "access_token" in data
@@ -114,11 +108,6 @@ def test_refresh_token_success(client):
 
 def test_refresh_token_with_access_token_rejected(client):
     create_db_user(email="bad_refresh@example.com", phone="9876543227")
-    access_token = create_access_token(
-        {"sub": "bad_refresh@example.com", "role": "CUSTOMER"}
-    )
-    response = client.post(
-        "/api/auth/refresh", json={"refresh_token": access_token}
-    )
+    access_token = create_access_token({"sub": "bad_refresh@example.com", "role": "CUSTOMER"})
+    response = client.post("/api/auth/refresh", json={"refresh_token": access_token})
     assert response.status_code == 401
-

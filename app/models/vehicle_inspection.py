@@ -1,6 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
+
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
@@ -26,9 +27,7 @@ class VehicleInspection(Base):
     __tablename__ = "vehicle_inspections"
 
     __table_args__ = (
-        CheckConstraint(
-            f"condition IN {CONDITIONS}", name="vehicle_inspection_condition_check"
-        ),
+        CheckConstraint(f"condition IN {CONDITIONS}", name="vehicle_inspection_condition_check"),
         CheckConstraint(
             f"engine_condition IN {CONDITIONS}",
             name="vehicle_inspection_engine_condition_check",
@@ -65,9 +64,7 @@ class VehicleInspection(Base):
     interior_condition: Mapped[str | None] = mapped_column(String(20), nullable=True)
 
     accident_history: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
-    estimated_market_value: Mapped[Decimal | None] = mapped_column(
-        Numeric(12, 2), nullable=True
-    )
+    estimated_market_value: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
 
     inspection_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     inspection_date: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
@@ -88,6 +85,4 @@ class VehicleInspection(Base):
 
     # Relationships: 1-to-1 with Vehicle, N-to-1 with Consultant (User)
     vehicle: Mapped["Vehicle"] = relationship("Vehicle", back_populates="inspection")
-    consultant: Mapped["User | None"] = relationship(
-        "User", back_populates="inspections"
-    )
+    consultant: Mapped["User | None"] = relationship("User", back_populates="inspections")

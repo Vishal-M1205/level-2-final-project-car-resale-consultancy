@@ -1,4 +1,5 @@
 import psycopg
+
 from tests.conftest import (
     config,
     create_db_listing,
@@ -8,9 +9,7 @@ from tests.conftest import (
 )
 
 
-def test_create_transaction_admin_success(
-    client, admin_headers, customer_user, buyer_user
-):
+def test_create_transaction_admin_success(client, admin_headers, customer_user, buyer_user):
     v = create_db_vehicle(seller_id=customer_user["id"], status="approved")
     listing = create_db_listing(vehicle_id=v["id"], listed_price=600000.0, status="ACTIVE")
 
@@ -45,9 +44,7 @@ def test_create_transaction_admin_success(
             assert cur.fetchone()[0] == "sold"
 
 
-def test_create_transaction_customer_forbidden(
-    client, customer_headers, customer_user, buyer_user
-):
+def test_create_transaction_customer_forbidden(client, customer_headers, customer_user, buyer_user):
     v = create_db_vehicle(seller_id=customer_user["id"], status="approved")
     listing = create_db_listing(vehicle_id=v["id"], status="ACTIVE")
 
@@ -60,9 +57,7 @@ def test_create_transaction_customer_forbidden(
     assert response.status_code == 403
 
 
-def test_create_transaction_listing_not_active(
-    client, admin_headers, customer_user, buyer_user
-):
+def test_create_transaction_listing_not_active(client, admin_headers, customer_user, buyer_user):
     v = create_db_vehicle(seller_id=customer_user["id"], status="approved")
     listing = create_db_listing(vehicle_id=v["id"], status="INACTIVE")
 
@@ -76,9 +71,7 @@ def test_create_transaction_listing_not_active(
     assert "only active listings can be sold" in response.json()["detail"].lower()
 
 
-def test_create_transaction_buyer_is_seller_rejected(
-    client, admin_headers, customer_user
-):
+def test_create_transaction_buyer_is_seller_rejected(client, admin_headers, customer_user):
     v = create_db_vehicle(seller_id=customer_user["id"], status="approved")
     listing = create_db_listing(vehicle_id=v["id"], status="ACTIVE")
 
@@ -95,9 +88,13 @@ def test_create_transaction_buyer_is_seller_rejected(
 def test_get_transactions_customer_scoped_to_own(
     client, customer_headers, customer_user, buyer_user
 ):
-    v1 = create_db_vehicle(seller_id=customer_user["id"], registration_number="TN01AA5001", status="approved")
+    v1 = create_db_vehicle(
+        seller_id=customer_user["id"], registration_number="TN01AA5001", status="approved"
+    )
     l1 = create_db_listing(vehicle_id=v1["id"])
-    tx1 = create_db_transaction(listing_id=l1["id"], buyer_id=buyer_user["id"], seller_id=customer_user["id"])
+    tx1 = create_db_transaction(
+        listing_id=l1["id"], buyer_id=buyer_user["id"], seller_id=customer_user["id"]
+    )
 
     # Third customer transaction
     c3 = create_db_user(email="c3_tx@example.com", phone="9876543241")
@@ -117,7 +114,9 @@ def test_patch_transaction_admin_update_delivery_notes(
 ):
     v = create_db_vehicle(seller_id=customer_user["id"], status="approved")
     listing = create_db_listing(vehicle_id=v["id"])
-    tx = create_db_transaction(listing_id=listing["id"], buyer_id=buyer_user["id"], seller_id=customer_user["id"])
+    tx = create_db_transaction(
+        listing_id=listing["id"], buyer_id=buyer_user["id"], seller_id=customer_user["id"]
+    )
 
     response = client.patch(
         f"/api/resale-transactions/{tx['id']}",
@@ -161,4 +160,3 @@ def test_patch_transaction_cancel_restores_listing_and_vehicle(
             assert cur.fetchone()[0] == "ACTIVE"
             cur.execute("SELECT status FROM vehicles WHERE id = %s;", (v["id"],))
             assert cur.fetchone()[0] == "approved"
-

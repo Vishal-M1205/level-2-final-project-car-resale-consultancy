@@ -11,4 +11,3 @@ __all__ = [
     "AsyncSessionMaker",
     "get_db_connection",
 ]
-

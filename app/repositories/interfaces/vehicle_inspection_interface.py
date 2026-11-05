@@ -9,7 +9,6 @@ from app.schemas.vehicle_inspection import (
 
 
 class VehicleInspectionInterface(ABC):
-
     @abstractmethod
     async def get_inspections(
         self,
@@ -24,9 +23,7 @@ class VehicleInspectionInterface(ABC):
         pass
 
     @abstractmethod
-    async def get_inspection_by_id(
-        self, inspection_id: int
-    ) -> VehicleInspection | None:
+    async def get_inspection_by_id(self, inspection_id: int) -> VehicleInspection | None:
         pass
 
     @abstractmethod
@@ -44,9 +41,7 @@ class VehicleInspectionInterface(ABC):
         pass
 
     @abstractmethod
-    async def reset_inspection_for_resubmission(
-        self, vehicle_id: int
-    ) -> VehicleInspection | None:
+    async def reset_inspection_for_resubmission(self, vehicle_id: int) -> VehicleInspection | None:
         pass
 
     @abstractmethod
@@ -58,15 +53,11 @@ class VehicleInspectionInterface(ABC):
         pass
 
     @abstractmethod
-    async def get_inspection_by_vehicle_id(
-        self, vehicle_id: int
-    ) -> VehicleInspection | None:
+    async def get_inspection_by_vehicle_id(self, vehicle_id: int) -> VehicleInspection | None:
         pass
 
     @abstractmethod
-    async def get_inspection_with_details(
-        self, inspection_id: int
-    ) -> VehicleInspection | None:
+    async def get_inspection_with_details(self, inspection_id: int) -> VehicleInspection | None:
         pass
 
     @abstractmethod

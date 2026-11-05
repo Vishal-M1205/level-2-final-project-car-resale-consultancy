@@ -1,23 +1,61 @@
+import re
 from datetime import datetime
 from decimal import Decimal
-import re
+
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
 from app.core.constants import FUEL_TYPES, TRANSMISSIONS
 
 
 class VehicleSubmission(BaseModel):
-    brand: str = Field(min_length=2, max_length=50)
-    model: str = Field(min_length=1, max_length=50)
-    variant: str | None = Field(default=None, max_length=50)
-    registration_number: str = Field(min_length=4, max_length=20)
-    manufacturing_year: int = Field(ge=1980, le=datetime.now().year + 1)
-    fuel_type: str
-    transmission: str
-    kilometers_driven: int = Field(ge=0)
-    ownership_count: int = Field(default=1, ge=1, le=10)
-    expected_price: Decimal = Field(gt=0, decimal_places=2)
-    description: str | None = Field(default=None, max_length=1000)
-    seating_capacity: int = Field(ge=1, le=20)
+    brand: str = Field(
+        min_length=2, max_length=50, description="Vehicle manufacturer brand", examples=["Toyota"]
+    )
+    model: str = Field(
+        min_length=1, max_length=50, description="Vehicle model name", examples=["Camry"]
+    )
+    variant: str | None = Field(
+        default=None, max_length=50, description="Vehicle variant or trim", examples=["Hybrid LE"]
+    )
+    registration_number: str = Field(
+        min_length=4,
+        max_length=20,
+        description="Vehicle registration / license plate number",
+        examples=["TN38AB1234"],
+    )
+    manufacturing_year: int = Field(
+        ge=1980,
+        le=datetime.now().year + 1,
+        description="Year of vehicle manufacture",
+        examples=[2021],
+    )
+    fuel_type: str = Field(
+        description="Fuel type: PETROL, DIESEL, ELECTRIC, HYBRID, CNG, LPG",
+        examples=["PETROL"],
+    )
+    transmission: str = Field(
+        description="Transmission type: MANUAL, AUTOMATIC",
+        examples=["AUTOMATIC"],
+    )
+    kilometers_driven: int = Field(
+        ge=0, description="Total distance driven in kilometers", examples=[35000]
+    )
+    ownership_count: int = Field(
+        default=1, ge=1, le=10, description="Number of previous owners", examples=[1]
+    )
+    expected_price: Decimal = Field(
+        gt=0,
+        decimal_places=2,
+        description="Seller's expected price in local currency",
+        examples=[Decimal("850000.00")],
+    )
+    description: str | None = Field(
+        default=None,
+        max_length=1000,
+        description="Detailed condition, accessories, and maintenance notes",
+        examples=["Single owner, dealer serviced regularly."],
+    )
+    seating_capacity: int = Field(ge=1, le=20, description="Total seating capacity", examples=[5])
 
     model_config = ConfigDict(str_strip_whitespace=True)
 
@@ -47,20 +85,65 @@ class VehicleSubmission(BaseModel):
 
 
 class VehicleUpdate(BaseModel):
-    brand: str | None = Field(default=None, min_length=2, max_length=50)
-    model: str | None = Field(default=None, min_length=1, max_length=50)
-    variant: str | None = Field(default=None, max_length=50)
-    registration_number: str | None = Field(default=None, min_length=4, max_length=20)
-    manufacturing_year: int | None = Field(
-        default=None, ge=1980, le=datetime.now().year + 1
+    brand: str | None = Field(
+        default=None,
+        min_length=2,
+        max_length=50,
+        description="Updated brand name",
+        examples=["Toyota"],
     )
-    fuel_type: str | None = None
-    transmission: str | None = None
-    kilometers_driven: int | None = Field(default=None, ge=0)
-    ownership_count: int | None = Field(default=None, ge=1, le=10)
-    expected_price: Decimal | None = Field(default=None, gt=0, decimal_places=2)
-    description: str | None = Field(default=None, max_length=1000)
-    seating_capacity: int | None = Field(default=None, ge=1, le=20)
+    model: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=50,
+        description="Updated model name",
+        examples=["Camry"],
+    )
+    variant: str | None = Field(
+        default=None, max_length=50, description="Updated variant", examples=["Hybrid XLE"]
+    )
+    registration_number: str | None = Field(
+        default=None,
+        min_length=4,
+        max_length=20,
+        description="Updated registration number",
+        examples=["TN38AB1234"],
+    )
+    manufacturing_year: int | None = Field(
+        default=None,
+        ge=1980,
+        le=datetime.now().year + 1,
+        description="Updated manufacturing year",
+        examples=[2021],
+    )
+    fuel_type: str | None = Field(
+        default=None, description="Updated fuel type", examples=["PETROL"]
+    )
+    transmission: str | None = Field(
+        default=None, description="Updated transmission type", examples=["AUTOMATIC"]
+    )
+    kilometers_driven: int | None = Field(
+        default=None, ge=0, description="Updated kilometers driven", examples=[36000]
+    )
+    ownership_count: int | None = Field(
+        default=None, ge=1, le=10, description="Updated ownership count", examples=[1]
+    )
+    expected_price: Decimal | None = Field(
+        default=None,
+        gt=0,
+        decimal_places=2,
+        description="Updated expected price",
+        examples=[Decimal("840000.00")],
+    )
+    description: str | None = Field(
+        default=None,
+        max_length=1000,
+        description="Updated description notes",
+        examples=["Clean title, new tires."],
+    )
+    seating_capacity: int | None = Field(
+        default=None, ge=1, le=20, description="Updated seating capacity", examples=[5]
+    )
 
     model_config = ConfigDict(str_strip_whitespace=True)
 
@@ -96,42 +179,77 @@ class VehicleUpdate(BaseModel):
 
 
 class VehicleResponse(BaseModel):
-    id: int
-    seller_id: int
-    brand: str
-    model: str
-    variant: str | None
-    registration_number: str
-    manufacturing_year: int
-    fuel_type: str
-    transmission: str
-    kilometers_driven: int
-    ownership_count: int
-    expected_price: Decimal
-    description: str | None
-    seating_capacity: int
+    id: int = Field(description="Unique vehicle identifier", examples=[1])
+    seller_id: int = Field(description="ID of the user who submitted the vehicle", examples=[2])
+    brand: str = Field(description="Vehicle manufacturer brand", examples=["Toyota"])
+    model: str = Field(description="Vehicle model", examples=["Camry"])
+    variant: str | None = Field(default=None, description="Vehicle variant", examples=["Hybrid LE"])
+    registration_number: str = Field(
+        description="Standardized vehicle registration number", examples=["TN38AB1234"]
+    )
+    manufacturing_year: int = Field(description="Year of manufacture", examples=[2021])
+    fuel_type: str = Field(description="Engine fuel type", examples=["PETROL"])
+    transmission: str = Field(description="Transmission type", examples=["AUTOMATIC"])
+    kilometers_driven: int = Field(description="Kilometers driven", examples=[35000])
+    ownership_count: int = Field(description="Number of owners", examples=[1])
+    expected_price: Decimal = Field(description="Expected price", examples=[Decimal("850000.00")])
+    description: str | None = Field(
+        default=None,
+        description="Vehicle notes and description",
+        examples=["Single owner, well-kept."],
+    )
+    seating_capacity: int = Field(description="Seating capacity", examples=[5])
 
-    status: str
-    created_at: datetime
-    updated_at: datetime
+    status: str = Field(
+        description="Current vehicle lifecycle status: submitted, approved, rejected, sold, deactivated",
+        examples=["submitted"],
+    )
+    created_at: datetime = Field(description="Creation timestamp")
+    updated_at: datetime = Field(description="Last update timestamp")
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class VehicleFilterParams(BaseModel):
-    seller_id: int | None = None
-    brand: str | None = None
-    model: str | None = None
-    fuel_type: str | None = None
-    transmission: str | None = None
-    min_price: Decimal | None = Field(default=None, ge=0)
-    max_price: Decimal | None = Field(default=None, ge=0)
-    min_year: int | None = Field(default=None, ge=1900)
-    max_year: int | None = None
-    status: str | None = None
+    seller_id: int | None = Field(
+        default=None, description="Filter vehicles by seller ID", examples=[2]
+    )
+    brand: str | None = Field(
+        default=None, description="Filter by vehicle brand", examples=["Toyota"]
+    )
+    model: str | None = Field(default=None, description="Filter by model", examples=["Camry"])
+    fuel_type: str | None = Field(
+        default=None, description="Filter by fuel type", examples=["PETROL"]
+    )
+    transmission: str | None = Field(
+        default=None, description="Filter by transmission", examples=["AUTOMATIC"]
+    )
+    min_price: Decimal | None = Field(
+        default=None,
+        ge=0,
+        description="Minimum expected price filter",
+        examples=[Decimal("200000.00")],
+    )
+    max_price: Decimal | None = Field(
+        default=None,
+        ge=0,
+        description="Maximum expected price filter",
+        examples=[Decimal("1000000.00")],
+    )
+    min_year: int | None = Field(
+        default=None, ge=1900, description="Minimum manufacturing year filter", examples=[2018]
+    )
+    max_year: int | None = Field(
+        default=None, description="Maximum manufacturing year filter", examples=[2024]
+    )
+    status: str | None = Field(
+        default=None,
+        description="Filter by status (submitted, approved, rejected, sold, deactivated)",
+        examples=["submitted"],
+    )
 
-    page: int = Field(default=1, ge=1)
-    limit: int = Field(default=5, ge=1, le=50)
+    page: int = Field(default=1, ge=1, description="Page index (starts at 1)", examples=[1])
+    limit: int = Field(default=5, ge=1, le=50, description="Page size limit (max 50)", examples=[5])
 
     model_config = ConfigDict(str_strip_whitespace=True)
 
@@ -147,16 +265,23 @@ class VehicleFilterParams(BaseModel):
 
 
 class VehicleListResponse(BaseModel):
-    vehicles: list[VehicleResponse]
-    page: int
-    limit: int
-    total_pages: int
-    total_vehicles: int
+    vehicles: list[VehicleResponse] = Field(description="List of vehicles on current page")
+    page: int = Field(description="Current page index", examples=[1])
+    limit: int = Field(description="Vehicles per page", examples=[5])
+    total_pages: int = Field(description="Total pages available", examples=[2])
+    total_vehicles: int = Field(description="Total matching vehicles count", examples=[8])
 
 
 class VehicleDecisionRequest(BaseModel):
-    action: str = Field(description="Must be 'APPROVED', 'REJECTED', or 'RESUBMIT'")
-    rejection_reason: str | None = Field(default=None, max_length=500)
+    action: str = Field(
+        description="Must be 'APPROVED', 'REJECTED', or 'RESUBMIT'", examples=["APPROVED"]
+    )
+    rejection_reason: str | None = Field(
+        default=None,
+        max_length=500,
+        description="Mandatory reason when action is REJECTED",
+        examples=["Documentation incomplete"],
+    )
 
     model_config = ConfigDict(str_strip_whitespace=True)
 
@@ -165,23 +290,29 @@ class VehicleDecisionRequest(BaseModel):
     def validate_action(cls, value: str) -> str:
         act = value.upper().strip()
         if act not in ("APPROVED", "REJECTED", "RESUBMIT"):
-            raise ValueError(
-                "Action must be either 'APPROVED', 'REJECTED', or 'RESUBMIT'"
-            )
+            raise ValueError("Action must be either 'APPROVED', 'REJECTED', or 'RESUBMIT'")
         return act
 
 
 class VehicleDecisionResponse(BaseModel):
-    vehicle_id: int
-    status: str
-    message: str
-    listing_id: int | None = None
-    listed_price: Decimal | None = None
+    vehicle_id: int = Field(description="Vehicle identifier", examples=[1])
+    status: str = Field(description="Updated vehicle status", examples=["approved"])
+    message: str = Field(description="Outcome message", examples=["Vehicle approved successfully."])
+    listing_id: int | None = Field(
+        default=None, description="Listing ID created on approval", examples=[1]
+    )
+    listed_price: Decimal | None = Field(
+        default=None, description="Listed resale price", examples=[Decimal("850000.00")]
+    )
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class VehicleDeleteResponse(BaseModel):
-    vehicle_id: int
-    status: str
-    message: str
+    vehicle_id: int = Field(description="Deactivated vehicle identifier", examples=[1])
+    status: str = Field(
+        description="Status after deletion ('deactivated')", examples=["deactivated"]
+    )
+    message: str = Field(
+        description="Confirmation message", examples=["Vehicle successfully deactivated."]
+    )
