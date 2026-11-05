@@ -19,6 +19,7 @@ from app.exceptions import (
     SignatureError,
     TokenExpiredException,
 )
+from app.middleware import RequestLoggingMiddleware
 from app.scripts.create_admin import create_admin
 from app.utilities.log import setup_logging
 
@@ -49,6 +50,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Car Resale Consultancy API", summary="", lifespan=lifespan)
+
+app.add_middleware(RequestLoggingMiddleware)
 
 app.include_router(auth_router)
 app.include_router(user_router)
