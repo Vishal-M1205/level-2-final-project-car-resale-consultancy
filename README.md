@@ -72,146 +72,107 @@ The project follows a layered Clean Architecture pattern with dependency inversi
 
 ## Business Workflow
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Customer as Customer (Seller/Buyer)
-    actor Consultant as Inspection Consultant
-    actor Admin as System Administrator
-    participant API as API Server
-    participant DB as PostgreSQL Database
+The system manages the used vehicle resale lifecycle through a coordinated, multi-stage operational workflow across Customers (sellers and buyers), Inspection Consultants, and System Administrators.
 
-    Note over Customer, API: 1. Vehicle Submission
-    Customer->>API: POST /api/vehicles/ (Vehicle Details)
-    API->>DB: Save vehicle ('submitted') & create pending inspection
-    Customer->>API: POST /api/vehicles/{id}/documents (RC, INSURANCE, PUC)
-    API->>DB: Store document metadata and save PDF to disk
+### Stage 1: User Onboarding and Authentication
+1. **Registration (`POST /api/auth/register`)**:
+   - Users register with their legal name, unique email, 10-digit phone number, address details, and role (`CUSTOMER` or `CONSULTANT`).
+   - The password is hashed using Argon2id.
+   - The initial system administrator is provisioned via an automated startup script (`app/scripts/create_admin.py`).
+2. **Authentication (`POST /api/auth/login`)**:
+   - Users authenticate using OAuth2 password flow credentials.
+   - The server validates credentials and issues an HS256-signed JWT access token containing user identity and role-based authorization scopes (`ROLE_SCOPES`).
+3. **Profile Management (`GET /api/users/me`)**:
+   - Authenticated users inspect their own profile, role, and contact information.
 
-    Note over Consultant, API: 2. Inspection
-    Consultant->>API: GET /api/vehicle-inspections/ (View pending queue)
-    Consultant->>API: POST /api/vehicle-inspections/{id}/claim (Claim task)
-    Consultant->>API: PUT /api/vehicle-inspections/{id} (Submit inspection & valuation)
-    API->>DB: Update inspection status to 'COMPLETED'
+### Stage 2: Vehicle Intake and Document Compliance
+1. **Vehicle Submission (`POST /api/vehicles/`)**:
+   - Registered sellers submit vehicle specifications: brand, model, variant, registration number, manufacturing year, fuel type, transmission, kilometers driven, ownership count, expected price, seating capacity, and optional description.
+   - The vehicle is created with `status = 'submitted'`.
+   - The system automatically initializes a linked record in `vehicle_inspections` with `status = 'PENDING'` and `consultant_id = None`, adding it to the inspection queue.
+2. **Mandatory Document Upload (`POST /api/vehicles/{id}/documents`)**:
+   - The seller must upload three mandatory legal documents in PDF format:
+     - `RC`: Registration Certificate.
+     - `INSURANCE`: Active insurance policy certificate.
+     - `PUC`: Pollution Under Control certificate.
+   - The server validates file extensions (`.pdf`), MIME types (`application/pdf`), and file size (maximum 5MB).
+   - Files are stored on the local filesystem under `app/static/documents/`, and metadata records are saved in `vehicle_documents`.
 
-    Note over Admin, API: 3. Review & Approval
-    Admin->>API: PATCH /api/vehicles/{id}/decision (Action: 'APPROVED')
-    API->>DB: Verify docs + valuation -> Update vehicle to 'approved' -> Create listing ('ACTIVE')
-    API-->>Customer: Send approval email
+### Stage 3: Certified Physical Inspection and Market Valuation
+1. **Inspection Queue Retrieval (`GET /api/vehicle-inspections/`)**:
+   - Certified consultants retrieve the pool of pending inspections (`is_claimed=false`, `status=PENDING`).
+   - Filter and pagination parameters allow consultants to search by vehicle status, condition, and submission date.
+2. **Atomic Task Claiming (`POST /api/vehicle-inspections/{id}/claim`)**:
+   - A consultant claims an unassigned vehicle inspection.
+   - An atomic database transaction verifies the vehicle is active and currently unassigned, preventing race conditions or double-claiming by concurrent consultants.
+   - The inspection record assigns `consultant_id = current_user.id`.
+3. **Physical Inspection and Valuation (`PUT /api/vehicle-inspections/{id}`)**:
+   - The claiming consultant performs a multi-point physical inspection and submits:
+     - Mechanical and cosmetic ratings: `engine_condition`, `exterior_condition`, `interior_condition`, and overall `condition` (`EXCELLENT`, `GOOD`, `FAIR`, `POOR`).
+     - Safety and structural history: `accident_history` (boolean flag) and detailed `inspection_notes`.
+     - Financial valuation: `estimated_market_value` (positive decimal).
+   - The inspection status transitions from `'PENDING'` to `'COMPLETED'`.
+   - If the consultant later updates the report on an approved vehicle, the updated `estimated_market_value` automatically resynchronizes with the live marketplace listing price.
 
-    Note over Customer, Admin: 4. Resale Transaction
-    Customer->>API: GET /api/listings/ (Browse vehicles)
-    Admin->>API: POST /api/resale-transactions/ (Record deal)
-    API->>DB: Set listing to 'SOLD' and vehicle to 'sold'
-    API-->>Customer: Send transaction confirmation emails
-```
+### Stage 4: Administrative Review, Decisioning, and Marketplace Publication
+1. **Compliance Verification (`PATCH /api/vehicles/{id}/decision`)**:
+   - Administrators review the vehicle submission, inspection report, and uploaded documents.
+   - The system enforces pre-approval requirements:
+     - The vehicle must have a linked inspection in `'COMPLETED'` status with a valid `estimated_market_value`.
+     - All three mandatory document types (`RC`, `INSURANCE`, `PUC`) must be present in `vehicle_documents`.
+2. **Decision Actions**:
+   - **`APPROVED`**:
+     - The vehicle transitions to `status = 'approved'`.
+     - An active listing is automatically created in `vehicle_listings` with `status = 'ACTIVE'` and `listed_price` set to the consultant's `estimated_market_value`. If a listing previously existed, it is reactivated and updated.
+     - An approval notification email is dispatched to the seller outside the database transaction.
+   - **`REJECTED`**:
+     - The vehicle transitions to `status = 'rejected'`.
+     - Any existing marketplace listing is deactivated (`status = 'INACTIVE'`).
+     - A rejection notification email containing the admin's mandatory reason is dispatched to the seller.
+   - **`RESUBMIT`**:
+     - An administrator can reopen a previously rejected vehicle.
+     - The vehicle transitions back to `status = 'submitted'`, and its linked inspection resets to `status = 'PENDING'` with `consultant_id = None`, re-entering the inspection queue for fresh evaluation.
+
+### Stage 5: Marketplace Discovery and Resale Transaction Settlement
+1. **Marketplace Browsing (`GET /api/listings/`)**:
+   - Public users and prospective buyers browse active listings (`status = 'ACTIVE'`).
+   - Supports multi-parameter filtering by price range (`min_price`, `max_price`), brand, manufacturing year, fuel type, transmission, and sorting order.
+2. **Resale Transaction Logging (`POST /api/resale-transactions/`)**:
+   - When a sale is concluded, an administrator logs the transaction with the `listing_id`, `buyer_id`, agreed `final_price`, `delivery_date`, and optional `delivery_notes`.
+   - The service enforces business integrity rules:
+     - The target listing must be in `'ACTIVE'` status.
+     - The buyer must be an active registered user and cannot be the seller of the vehicle.
+     - The associated vehicle must be in `'approved'` status.
+   - The transaction executes within an atomic database transaction:
+     - Creates a record in `resale_transactions` with `status = 'COMPLETED'`.
+     - Transitions the marketplace listing `status = 'SOLD'`.
+     - Transitions the vehicle `status = 'sold'`.
+   - Confirmation emails with deal details are dispatched asynchronously to the buyer, seller, and inspecting consultant outside the database transaction.
+
+### Stage 6: Deal Cancellation and State Rollback
+1. **Transaction Cancellation (`PATCH /api/resale-transactions/{id}`)**:
+   - If a deal is aborted prior to physical vehicle handover, an administrator updates the transaction `status = 'CANCELLED'`.
+2. **Automatic Rollback**:
+   - The vehicle status is automatically rolled back from `'sold'` to `'approved'`.
+   - The marketplace listing status is automatically rolled back from `'SOLD'` to `'ACTIVE'`.
+   - The vehicle immediately re-enters the active marketplace inventory, making it available for new buyers.
+   - Cancellation notification emails are dispatched to both buyer and seller.
 
 ---
 
 ## Database Table Design
 
-### Entity-Relationship Diagram
+### Entity Relationships
 
-```mermaid
-erDiagram
-    users ||--o{ vehicles : "sells"
-    users ||--o{ vehicle_inspections : "inspects (consultant)"
-    users ||--o{ resale_transactions : "buyer in"
-    users ||--o{ resale_transactions : "seller in"
-    users ||--o{ resale_transactions : "facilitates (consultant)"
-    vehicles ||--o{ vehicle_documents : "has uploaded"
-    vehicles ||--o| vehicle_inspections : "evaluated by"
-    vehicles ||--o| vehicle_listings : "published as"
-    vehicle_listings ||--o{ resale_transactions : "sold via"
+The relational schema connects six core tables:
 
-    users {
-        int id PK
-        string name
-        string email UK
-        string hashed_password
-        string phone UK
-        int age
-        string gender
-        string address_line_1
-        string address_line_2
-        string district
-        string state
-        string pincode
-        string role
-        boolean is_active
-        timestamp created_at
-        timestamp updated_at
-    }
-
-    vehicles {
-        int id PK
-        int seller_id FK
-        string brand
-        string model
-        string variant
-        string registration_number UK
-        int manufacturing_year
-        string fuel_type
-        string transmission
-        int kilometers_driven
-        int ownership_count
-        numeric expected_price
-        text description
-        int seating_capacity
-        string status
-        timestamp created_at
-        timestamp updated_at
-    }
-
-    vehicle_documents {
-        int id PK
-        int vehicle_id FK
-        string document_type
-        string original_filename
-        string document_url
-        timestamp uploaded_at
-    }
-
-    vehicle_inspections {
-        int id PK
-        int vehicle_id FK,UK
-        int consultant_id FK
-        string condition
-        string engine_condition
-        string exterior_condition
-        string interior_condition
-        boolean accident_history
-        numeric estimated_market_value
-        text inspection_notes
-        timestamp inspection_date
-        string status
-        timestamp created_at
-        timestamp updated_at
-    }
-
-    vehicle_listings {
-        int id PK
-        int vehicle_id FK,UK
-        numeric listed_price
-        text listing_description
-        string status
-        timestamp listed_at
-        timestamp updated_at
-    }
-
-    resale_transactions {
-        int id PK
-        int listing_id FK
-        int buyer_id FK
-        int seller_id FK
-        int consultant_id FK
-        numeric final_price
-        string status
-        timestamp delivery_date
-        text delivery_notes
-        timestamp created_at
-        timestamp updated_at
-    }
-```
+- **Users to Vehicles (`1 : N`)**: A customer registers and submits one or more vehicles for resale (`vehicles.seller_id -> users.id`).
+- **Users to Vehicle Inspections (`1 : N`)**: A consultant claims and evaluates one or more assigned inspections (`vehicle_inspections.consultant_id -> users.id`).
+- **Vehicles to Vehicle Documents (`1 : N`)**: Each vehicle contains multiple uploaded legal compliance documents (`vehicle_documents.vehicle_id -> vehicles.id`).
+- **Vehicles to Vehicle Inspection (`1 : 1`)**: Each vehicle has exactly one inspection lifecycle record (`vehicle_inspections.vehicle_id -> vehicles.id`, unique).
+- **Vehicles to Vehicle Listing (`1 : 1`)**: An approved vehicle has at most one public marketplace listing (`vehicle_listings.vehicle_id -> vehicles.id`, unique).
+- **Vehicle Listings to Resale Transactions (`1 : N`)**: A marketplace listing is finalized through a transaction (`resale_transactions.listing_id -> vehicle_listings.id`).
+- **Resale Transactions Audit Links**: Each transaction records the `buyer_id` (`users.id`), `seller_id` (`users.id`), and facilitating `consultant_id` (`users.id`) for auditing and settlement.
 
 ### Table Definitions
 
