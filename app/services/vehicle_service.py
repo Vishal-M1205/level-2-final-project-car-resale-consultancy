@@ -94,11 +94,10 @@ class VehicleService:
         user: User,
     ) -> Vehicle:
         """
-        Update vehicle details.
-        Seller can ONLY update when vehicle status is 'submitted'.
-        Admin can update vehicle at ANY status.
-        If description is updated and vehicle status is 'approved',
-        updates the description in vehicle_listings.listing_description.
+        Updates vehicle specifications with state-specific constraints:
+        - Sellers can only edit their own vehicles while status is 'submitted'.
+        - Admins can edit at any status except 'sold' or 'deactivated'.
+        - If description changes and vehicle is already approved, syncs live listing description.
         """
         update_fields = update_data.model_dump(exclude_unset=True)
         if not update_fields:
@@ -117,7 +116,7 @@ class VehicleService:
             if vehicle.status == "deactivated":
                 raise BadRequestException("Cannot edit details for a deactivated vehicle.")
 
-            # sellers can only update their own vehicles
+            # Sellers can only update their own submitted vehicles
             if user.role != "ADMIN":
                 if vehicle.seller_id != user.id:
                     raise ForbiddenException("You do not have permission to update this vehicle.")
@@ -143,7 +142,7 @@ class VehicleService:
                 update_data=update_fields,
             )
 
-            # update listing description if vehicle is approved and description was updated
+            # Sync listing description if vehicle is approved and description was updated
             if "description" in update_fields and vehicle.status == "approved":
                 new_desc = update_fields["description"] or "No description is mentioned"
                 await self.vehicle_listing_repository.update_listing_description(
@@ -216,9 +215,12 @@ class VehicleService:
         admin_user: User,
     ) -> VehicleDecisionResponse:
         """
-        Process admin decision (APPROVED or REJECTED) on a submitted vehicle.
-        Validates inspection completion and mandatory documents before approval.
-        Automatically creates a  Resale-Vehicle listing
+        Executes Admin lifecycle state transitions for a submitted vehicle:
+        - RESUBMIT: Re-opens a rejected vehicle to 'submitted' and resets its inspection to 'PENDING'.
+        - APPROVED: Enforces completed physical inspection and mandatory document verification
+                    (RC, INSURANCE, PUC). Automatically creates or reactivates an ACTIVE marketplace
+                    listing synced to the consultant's estimated market value.
+        - REJECTED: Marks vehicle as 'rejected' and cascades deactivation to any existing listing.
         """
         if admin_user.role != "ADMIN":
             raise ForbiddenException("Only Admins are authorized to approve or reject vehicles.")
@@ -238,6 +240,7 @@ class VehicleService:
             if vehicle.status == "deactivated":
                 raise BadRequestException("Cannot change decision for a deactivated vehicle.")
 
+            # 1. RESUBMIT flow: reopens rejected vehicle for a fresh inspection
             if decision.action == "RESUBMIT":
                 if vehicle.status != "rejected":
                     raise BadRequestException(
@@ -253,6 +256,7 @@ class VehicleService:
                     message="Vehicle has been successfully resubmitted for inspection.",
                 )
 
+            # 2. Pre-approval validation: inspection must be completed with valuation
             inspection = await self.vehicle_inspection_repository.get_inspection_by_vehicle_id(
                 vehicle_id
             )
@@ -264,8 +268,8 @@ class VehicleService:
             if self.user_repository:
                 seller = await self.user_repository.get_user_by_id(vehicle.seller_id)
 
+            # 3. APPROVED flow: verify mandatory documents (RC, INSURANCE, PUC)
             if decision.action == "APPROVED":
-                # Check mandatory documents (RC, INSURANCE, PUC) using set to find the missing docs
                 if self.vehicle_document_repository:
                     documents = await self.vehicle_document_repository.get_documents_by_vehicle_id(
                         vehicle_id
@@ -288,7 +292,7 @@ class VehicleService:
 
                 listing_description = vehicle.description or "No description is mentioned"
 
-                # auto create listing if not exists
+                # Auto-create or reactivate marketplace listing synced to valuation
                 listing = await self.vehicle_listing_repository.get_listing_by_vehicle_id(
                     vehicle.id
                 )
@@ -326,11 +330,9 @@ class VehicleService:
                     listed_price=listed_price,
                 )
 
+            # 4. REJECTED flow: reject vehicle and cascade deactivation to listing
             elif decision.action == "REJECTED":
                 await self.vehicle_repository.update_vehicle_status(vehicle_id, "rejected")
-
-                # soft-delete - deactivate existing listing if vehicle is moved to rejected
-
                 await self.vehicle_listing_repository.deactivate_listing(vehicle.id)
 
                 rejection_reason = (
@@ -354,7 +356,7 @@ class VehicleService:
                     listed_price=None,
                 )
 
-        # Sending notification email outside the DB transaction
+        # Dispatch notification email outside the DB transaction to prevent external network failure rollbacks
         if self.email_service and email_payload:
             try:
                 await self.email_service.send_mail(email_payload)
@@ -365,10 +367,8 @@ class VehicleService:
 
     async def delete_vehicle(self, vehicle_id: int, user: User) -> dict:
         """
-        Soft delete a vehicle.
-        Seller can only delete when status is 'submitted' or 'rejected'.
-        Admin can delete at any status except 'sold'.
-        Cascades soft delete to vehicle listing if active.
+        Soft-deletes a vehicle and cascades deactivation to any active marketplace listing.
+        Enforces state guards: sellers can only delete 'submitted' or 'rejected' vehicles; 'sold' cars cannot be deleted.
         """
         async with self.session.begin():
             vehicle = await self.vehicle_repository.get_vehicle_by_id(vehicle_id)

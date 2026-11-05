@@ -59,6 +59,8 @@ class UserRepository(UserInterface):
     ) -> dict:
         offset = (page - 1) * limit
         conditions = []
+
+        # Dynamic multi-parameter filtering and case-insensitive search
         if role:
             conditions.append(User.role == role.upper().strip())
         if is_active is not None:
@@ -87,6 +89,7 @@ class UserRepository(UserInterface):
 
         where_clause = and_(*conditions) if conditions else True
 
+        # Dynamic column sort with fallback to created_at
         sort_column_map = {
             "created_at": User.created_at,
             "name": User.name,

@@ -73,7 +73,10 @@ class VehicleInspectionService:
         }
 
     async def claim_vehicle_inspection(self, inspection_id: int, consultant: User) -> dict:
-
+        """
+        Assigns an unassigned pending inspection to the calling consultant.
+        Guards: prevents double-claiming, verifies vehicle is active, and runs atomically.
+        """
         async with self.session.begin():
             existing_inspection = await self.vehicle_inspection_repository.get_inspection_by_id(
                 inspection_id
@@ -278,9 +281,11 @@ class VehicleInspectionService:
         user: User,
     ) -> VehicleInspection:
         """
-        Submit or replace completed inspection report details (PUT).
-        - If PENDING: submits initial inspection report (consultant must have claimed).
-        - If COMPLETED: replaces/updates existing report details.
+        Handles the dual-purpose report endpoint (PUT):
+        - Initial submission (PENDING): moves status to COMPLETED and sets market valuation.
+        - Subsequent update (COMPLETED): consultants can update while vehicle is 'submitted';
+          once vehicle is 'approved' or 'rejected', only Admins can modify the report.
+        - Price sync: if vehicle is already approved, automatically syncs the listed price.
         """
         async with self.session.begin():
             inspection = await self.vehicle_inspection_repository.get_inspection_by_id(
@@ -301,6 +306,7 @@ class VehicleInspectionService:
                     f"Cannot update inspection for a vehicle in '{vehicle.status}' status."
                 )
 
+            # Initial report submission: requires claimed consultant assignment
             if inspection.status == "PENDING":
                 if inspection.consultant_id is None:
                     raise BadRequestException(
@@ -331,7 +337,7 @@ class VehicleInspectionService:
                 report_data=report_data,
             )
 
-            # sync listed_price in active listing if vehicle is approved
+            # Price synchronization: keep active listing price in sync with latest valuation
             if vehicle.status == "approved" and self.vehicle_listing_repository:
                 await self.vehicle_listing_repository.update_listing_price(
                     vehicle_id=vehicle.id,

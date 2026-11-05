@@ -208,6 +208,13 @@ class ResaleTransactionService:
     async def log_resale_transaction(
         self, request: CreateResaleTransactionRequest, user: User
     ) -> ResaleTransaction:
+        """
+        Records a completed resale deal and executes atomic multi-table state transitions:
+        - Validates listing is ACTIVE, vehicle is active, buyer is active and distinct from seller.
+        - Persists ResaleTransaction audit record.
+        - Atomically transitions vehicle_listing to 'SOLD' and vehicle to 'sold'.
+        - Dispatches confirmation emails to buyer, seller, and consultant outside DB transaction.
+        """
         if user.role != "ADMIN":
             raise ForbiddenException("Only administrators can record resale transactions.")
 
@@ -299,6 +306,11 @@ class ResaleTransactionService:
         patch_data: ResaleTransactionPatchRequest,
         user: User,
     ) -> ResaleTransaction:
+        """
+        Updates transaction metadata or executes deal cancellation rollback:
+        - If status changes to 'CANCELLED', rolls back vehicle state to 'approved' and listing to 'ACTIVE'.
+        - Sends cancellation notifications to buyer and seller outside DB transaction.
+        """
         if user.role != "ADMIN":
             raise ForbiddenException("Only administrators can update resale transactions.")
 

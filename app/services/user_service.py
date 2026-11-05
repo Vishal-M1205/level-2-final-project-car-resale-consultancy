@@ -60,6 +60,10 @@ class UserService:
             return user
 
     async def soft_delete_user(self, user_id: int, current_user: User) -> dict:
+        """
+        Soft-deactivates a user account and cascades deactivation to their active marketplace listings.
+        Guards: Admins cannot deactivate their own account; target user must be currently active.
+        """
         if current_user.role != "ADMIN":
             raise ForbiddenException("Only administrators can deactivate users.")
 
